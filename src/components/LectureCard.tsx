@@ -95,6 +95,11 @@ export const LectureCard: React.FC<LectureCardProps> = ({ lecture, index, semest
                     bestanden
                   </span>
                 )}
+                {!lecture.passed && lecture.oralExam && (
+                  <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">
+                    Münd. Prüfung
+                  </span>
+                )}
               </div>
               {lecture.examDate && (
                 <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">

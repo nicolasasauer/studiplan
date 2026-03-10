@@ -10,13 +10,14 @@ Der Fokus liegt auf einer schnellen, visuellen Studienplanung mit Parkplatz-Logi
 - Planname direkt im Header bearbeitbar
 - Veranstaltungen mit Name, ECTS, Klausurdatum, Turnus (WS/SS/Beide), Beschreibung und Farbe
 - Bestanden-Status und Note (1,0–5,0) pro Veranstaltung erfassbar
+- Veranstaltung als „Muendliche Pruefung" markierbar: bei nicht bestandener Klausur (5,0) kann die Veranstaltung als Zweitversuch in ein anderes Semester verschoben werden; schlaegt auch dieser fehl, laesst sich eine muendliche Pruefung eintragen (Note standardmaessig 4,0)
 - ECTS- und Notenstatistik im Header (gesamt geplant, bestanden, Durchschnittsnote)
 - Notenstatistik pro Semester (bestandene ECTS, Durchschnittsnote)
 - Drag-and-drop zwischen Semestern und Parkplatz
 - Reihenfolge innerhalb eines Semesters per Drag-and-drop anpassbar
 - Sortierung pro Semester nach Datum oder ECTS
-- Semester ein-/ausklappbar
-- Semester loeschbar (Veranstaltungen landen automatisch im Parkplatz)
+- Semester ein-/ausklappbar; alle Semester gleichzeitig ein-/ausklappbar ueber einen kleinen Button ueber der Semesterliste
+- Semester loeschbar (Veranstaltungen landen automatisch im Parkplatz); nachfolgende Semester werden automatisch umnummeriert
 - Bearbeiten und Loeschen von Veranstaltungen
 - Parkplatz fuer noch nicht zugeordnete Veranstaltungen (erscheint nur wenn belegt)
 - Import/Export des Plans als JSON-Datei

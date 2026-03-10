@@ -21,6 +21,7 @@ const getInitialFormData = (initialLecture?: Lecture): Omit<Lecture, 'id'> => {
       color: initialLecture.color,
       passed: initialLecture.passed,
       grade: initialLecture.grade,
+      oralExam: initialLecture.oralExam,
     };
   }
 
@@ -33,6 +34,7 @@ const getInitialFormData = (initialLecture?: Lecture): Omit<Lecture, 'id'> => {
     color: COLORS[0],
     passed: false,
     grade: undefined,
+    oralExam: false,
   };
 };
 
@@ -152,18 +154,20 @@ export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClos
                 onChange={(e) => setFormData({
                   ...formData,
                   passed: e.target.checked,
-                  grade: e.target.checked ? formData.grade : undefined,
+                  grade: e.target.checked
+                    ? (formData.oralExam ? (formData.grade ?? 4.0) : formData.grade)
+                    : undefined,
                 })}
                 className="w-4 h-4 rounded accent-blue-500 cursor-pointer"
               />
               <label htmlFor="passed" className="text-sm font-medium text-gray-300 cursor-pointer">
-                Klausur bestanden
+                {formData.oralExam ? 'Mündliche Prüfung bestanden' : 'Klausur bestanden'}
               </label>
             </div>
             {formData.passed && (
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Note <span className="text-gray-500">(optional, 1,0 – 5,0)</span>
+                  {formData.oralExam ? 'Note Mündliche Prüfung' : 'Note'} <span className="text-gray-500">(optional, 1,0 – 5,0)</span>
                 </label>
                 <input
                   type="number"
@@ -175,9 +179,23 @@ export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClos
                     ...formData,
                     grade: e.target.value ? parseFloat(e.target.value) : undefined,
                   })}
-                  placeholder="z.B. 1,7"
+                  placeholder={formData.oralExam ? '4,0' : 'z.B. 1,7'}
                   className="input-field"
                 />
+              </div>
+            )}
+            {!formData.passed && (
+              <div className="flex items-center gap-3 pl-1">
+                <input
+                  type="checkbox"
+                  id="oralExam"
+                  checked={!!formData.oralExam}
+                  onChange={(e) => setFormData({ ...formData, oralExam: e.target.checked })}
+                  className="w-4 h-4 rounded accent-orange-500 cursor-pointer"
+                />
+                <label htmlFor="oralExam" className="text-sm text-gray-300 cursor-pointer">
+                  Mündliche Prüfung
+                </label>
               </div>
             )}
           </div>

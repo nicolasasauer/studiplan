@@ -176,8 +176,17 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => ({
       const semester = state.semesters.find((s) => s.id === id);
       if (!semester) return state;
 
+      const deletedNumber = semester.number;
+      const remaining = state.semesters
+        .filter((s) => s.id !== id)
+        .map((s) =>
+          s.number > deletedNumber
+            ? { ...s, number: s.number - 1, season: getSeasonForSemester(s.number - 1, state.startSeason) }
+            : s
+        );
+
       return {
-        semesters: state.semesters.filter((s) => s.id !== id),
+        semesters: remaining,
         parkingLot: [...state.parkingLot, ...semester.lectures],
       };
     });

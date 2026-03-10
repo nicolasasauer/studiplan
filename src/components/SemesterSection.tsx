@@ -8,11 +8,19 @@ import { LectureCard } from './LectureCard';
 interface SemesterSectionProps {
   semester: Semester;
   onEdit: (lectureId: string) => void;
+  externalCollapsed?: boolean | null;
 }
 
-export const SemesterSection: React.FC<SemesterSectionProps> = ({ semester, onEdit }) => {
+export const SemesterSection: React.FC<SemesterSectionProps> = ({ semester, onEdit, externalCollapsed }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [prevExternalCollapsed, setPrevExternalCollapsed] = useState(externalCollapsed);
   const [sortBy, setSortBy] = useState<'date' | 'ects' | null>(null);
+
+  // Sync external collapse command without useEffect (derived-state pattern)
+  if (externalCollapsed !== prevExternalCollapsed && externalCollapsed != null) {
+    setPrevExternalCollapsed(externalCollapsed);
+    setIsCollapsed(externalCollapsed);
+  }
   const removeSemester = useStudyPlanStore(state => state.removeSemester);
   const sortSemesterLectures = useStudyPlanStore(state => state.sortSemesterLectures);
 

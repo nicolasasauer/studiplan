@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { DropResult } from 'react-beautiful-dnd';
 import { DragDropContext } from 'react-beautiful-dnd';
-import { Plus, BookOpen, Download, Upload, CheckCircle2 } from 'lucide-react';
+import { Plus, BookOpen, Download, Upload, CheckCircle2, ChevronsUpDown } from 'lucide-react';
 import type { SemesterSeason } from './types';
 import { useStudyPlanStore } from './store';
 import {
@@ -15,6 +15,7 @@ function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingLectureId, setEditingLectureId] = useState<string | null>(null);
   const [planNameInput, setPlanNameInput] = useState('');
+  const [allCollapsed, setAllCollapsed] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const planName = useStudyPlanStore(state => state.planName);
@@ -245,14 +246,27 @@ function App() {
                   <ParkingLot onEdit={setEditingLectureId} />
                 </div>
               )}
-              <div className="flex-1 space-y-6 min-w-0">
-                {semesters.map(semester => (
-                  <SemesterSection
-                    key={semester.id}
-                    semester={semester}
-                    onEdit={setEditingLectureId}
-                  />
-                ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={() => setAllCollapsed(c => c !== true ? true : false)}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded"
+                    title={allCollapsed === true ? 'Alle ausklappen' : 'Alle einklappen'}
+                  >
+                    <ChevronsUpDown size={13} />
+                    {allCollapsed === true ? 'Alle ausklappen' : 'Alle einklappen'}
+                  </button>
+                </div>
+                <div className="space-y-6">
+                  {semesters.map(semester => (
+                    <SemesterSection
+                      key={semester.id}
+                      semester={semester}
+                      onEdit={setEditingLectureId}
+                      externalCollapsed={allCollapsed}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           )}

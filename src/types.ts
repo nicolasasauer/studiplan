@@ -11,6 +11,7 @@ export interface Lecture {
   semesterId?: string;
   passed?: boolean;
   grade?: number;
+  oralExam?: boolean;
 }
 
 export interface Semester {

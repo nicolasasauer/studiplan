@@ -3,6 +3,23 @@
 StudiumsPlaner ist eine Web-App zur Planung von Semestern und Klausuren mit Drag-and-drop.
 Der Fokus liegt auf einer schnellen, visuellen Studienplanung mit Parkplatz-Logik fuer noch nicht zugeordnete Veranstaltungen.
 
+## Screenshots
+
+### Ersteinrichtung
+Beim ersten Start kann der Planname, die Regelstudienzeit und das Startsemester konfiguriert werden.
+
+![Ersteinrichtung – Plan einrichten Dialog](https://github.com/user-attachments/assets/b51ed2d2-bcab-4f01-9a79-5610d3c3b8ca)
+
+### Semesteruebersicht
+Die Hauptansicht zeigt alle Semester mit Veranstaltungskarten inklusive ECTS, Note, Klausurdatum und Bestandenstatus. Der Header liefert eine kompakte Gesamtstatistik. Der Parkplatz links sammelt noch nicht zugeordnete Veranstaltungen.
+
+![Hauptansicht mit Semestern, Parkplatz und ECTS-Statistik](https://github.com/user-attachments/assets/b22705c9-997b-43af-baa5-0fd6898fa263)
+
+### Veranstaltung anlegen
+Ueber den Dialog koennen neue Veranstaltungen mit Name, ECTS, Turnus (WS/SS/Beide), Klausurdatum, Beschreibung und Farbe angelegt oder bearbeitet werden.
+
+![Dialog zum Anlegen einer neuen Veranstaltung](https://github.com/user-attachments/assets/a5f2913f-9c21-401a-9820-0b912c9c5029)
+
 ## Features
 
 - Ersteinrichtung beim ersten Start (Planname, Regelstudienzeit, Startsemester)

@@ -13,6 +13,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "express": "^4.22.1",
+    "express-rate-limit": "^7.5.1",
     "lucide-react": "^0.296.0",
     "react": "^18.2.0",
     "react-beautiful-dnd": "^13.1.1",

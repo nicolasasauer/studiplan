@@ -23,20 +23,25 @@ COPY index.html ./
 RUN npm run build
 
 # Runtime stage
-FROM nginx:alpine
+FROM node:20-alpine
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy built app from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy package files and install production dependencies only
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy server
+COPY server ./server
+
+# Copy built frontend from builder
+COPY --from=builder /app/dist ./dist
 
 # Expose port
-EXPOSE 80
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-# Start nginx (default CMD from nginx image is sufficient)
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server/index.js"]

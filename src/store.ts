@@ -2,6 +2,17 @@ import { create } from 'zustand';
 import type { Lecture, Semester, SemesterSeason, StudyPlan } from './types';
 
 const PLAN_STORAGE_KEY = 'studyPlan';
+const API_URL = '/api/plan';
+
+const syncToServer = (plan: StudyPlan): void => {
+  fetch(API_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(plan),
+  }).catch(() => {
+    // Server not available – localStorage-only mode
+  });
+};
 const DEFAULT_PLAN_NAME = 'Mein Studienplan';
 const DEFAULT_REGULAR_SEMESTERS = 6;
 const DEFAULT_START_SEASON: SemesterSeason = 'winter';
@@ -321,6 +332,7 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => ({
       parkingLot: state.parkingLot,
     };
     localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
+    syncToServer(plan);
     return JSON.stringify(plan);
   },
 
@@ -359,3 +371,15 @@ if (savedPlan) {
     console.error('Failed to load saved plan:', error);
   }
 }
+
+// Load from server – authoritative source so all devices share the same state
+fetch(API_URL)
+  .then((res) => (res.ok ? (res.json() as Promise<unknown>) : Promise.reject()))
+  .then((data) => {
+    const serverPlan = migrateStudyPlan(data);
+    useStudyPlanStore.setState(serverPlan);
+    localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(serverPlan));
+  })
+  .catch(() => {
+    // Server not available – keep using the value already loaded from localStorage
+  });

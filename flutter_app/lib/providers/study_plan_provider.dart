@@ -28,6 +28,8 @@ class StudyPlanProvider extends ChangeNotifier {
 
   static const _localUsername = 'lokal';
 
+  ApiService get _api => ApiService(_baseUrl);
+
   // ─── Initialization ───────────────────────────────────────────────────────
 
   Future<void> initialize() async {

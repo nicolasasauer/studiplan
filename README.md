@@ -47,7 +47,7 @@ Ueber den Dialog koennen neue Veranstaltungen mit Name, ECTS, Turnus (WS/SS/Beid
 - Bearbeiten und Loeschen von Veranstaltungen
 - Parkplatz fuer noch nicht zugeordnete Veranstaltungen (erscheint nur wenn belegt)
 - Import/Export des Plans als JSON-Datei
-- Persistenz im Browser via `localStorage`; bei Docker-Deployment zusaetzlich server-seitig unter `/data/plan.json`
+- Persistenz im Browser via `localStorage`; bei Docker-Deployment zusaetzlich server-seitig in einer SQLite-Datenbank unter `/data/studiumsplaner.db`
 
 ## Wichtige Planungsregel
 
@@ -125,7 +125,7 @@ Stoppen:
 docker-compose down
 ```
 
-Daten werden in einem Docker-Volume (`studiumsplaner_data`) unter `/data/plan.json` gespeichert.
+Daten werden in einem Docker-Volume (`studiumsplaner_data`) unter `/data/studiumsplaner.db` gespeichert (SQLite-Datenbank).
 
 ### Docker Image selber bauen
 

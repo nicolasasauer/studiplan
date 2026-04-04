@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { DropResult } from 'react-beautiful-dnd';
 import { DragDropContext } from 'react-beautiful-dnd';
-import { Plus, BookOpen, Download, Upload, CheckCircle2, ChevronsUpDown, LogOut, User } from 'lucide-react';
+import { Plus, BookOpen, Download, Upload, CheckCircle2, ChevronsUpDown, LogOut, User, Trash2 } from 'lucide-react';
 import type { SemesterSeason } from './types';
 import { useStudyPlanStore } from './store';
 import {
@@ -17,6 +17,9 @@ function App() {
   const [editingLectureId, setEditingLectureId] = useState<string | null>(null);
   const [planNameInput, setPlanNameInput] = useState('');
   const [allCollapsed, setAllCollapsed] = useState<boolean | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentUser = useStudyPlanStore(state => state.currentUser);
@@ -25,6 +28,7 @@ function App() {
   const setAuthToken = useStudyPlanStore(state => state.setAuthToken);
   const loadPlanForUser = useStudyPlanStore(state => state.loadPlanForUser);
   const refreshPlanFromServer = useStudyPlanStore(state => state.refreshPlanFromServer);
+  const deleteAccount = useStudyPlanStore(state => state.deleteAccount);
   const planName = useStudyPlanStore(state => state.planName);
   const regularSemesters = useStudyPlanStore(state => state.regularSemesters);
   const startSeason = useStudyPlanStore(state => state.startSeason);
@@ -64,6 +68,18 @@ function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+  };
+
+  const handleDeleteAccountConfirm = async () => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    const err = await deleteAccount();
+    setDeleteLoading(false);
+    if (err) {
+      setDeleteError(err);
+    } else {
+      setShowDeleteConfirm(false);
+    }
   };
 
   const allLectures = [...semesters.flatMap(s => s.lectures), ...parkingLot];
@@ -203,6 +219,15 @@ function App() {
                       <User size={14} className="text-blue-400" />
                       <span className="hidden sm:inline">{currentUser}</span>
                     </span>
+                    <button
+                      onClick={() => { setShowDeleteConfirm(true); setDeleteError(null); }}
+                      className="btn-secondary flex items-center gap-2 text-red-400 hover:text-red-300 border-red-900/50 hover:border-red-700"
+                      title="Konto löschen"
+                      aria-label="Konto löschen"
+                    >
+                      <Trash2 size={18} aria-hidden="true" />
+                      <span className="hidden sm:inline">Konto löschen</span>
+                    </button>
                     <button
                       onClick={handleLogout}
                       className="btn-secondary flex items-center gap-2"
@@ -350,6 +375,37 @@ function App() {
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-white mb-2">Konto löschen?</h2>
+            <p className="text-slate-300 text-sm mb-4">
+              Soll das Konto <span className="font-semibold text-white">{currentUser}</span> unwiderruflich
+              gelöscht werden? Alle Daten gehen dabei verloren.
+            </p>
+            {deleteError && (
+              <p className="text-red-400 text-sm mb-3">{deleteError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteError(null); }}
+                className="btn-secondary flex-1"
+                disabled={deleteLoading}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => void handleDeleteAccountConfirm()}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white font-medium transition-colors disabled:opacity-50"
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? 'Löschen…' : 'Löschen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DragDropContext>
   );
 }

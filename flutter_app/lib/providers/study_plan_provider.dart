@@ -138,6 +138,7 @@ class StudyPlanProvider extends ChangeNotifier {
     try {
       final r = await _api.deleteUser(currentUser!, authToken!);
       if (r.isSuccess) {
+        await _storage.clearPlan();
         await logout();
         return null;
       }

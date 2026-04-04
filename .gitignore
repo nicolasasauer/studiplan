@@ -25,3 +25,4 @@ test-results/
 *.njsproj
 *.sln
 *.sw?
+flutter_app/android/key.properties

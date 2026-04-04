@@ -139,6 +139,7 @@ interface StudyPlanStore extends StudyPlan {
   setAuthToken: (token: string | null) => void;
   loadPlanForUser: (username: string, token: string) => Promise<void>;
   refreshPlanFromServer: () => Promise<void>;
+  deleteAccount: () => Promise<string | null>;
   initializePlan: (options: { planName: string; regularSemesters: number; startSeason: SemesterSeason }) => void;
   setPlanName: (name: string) => void;
   addSemester: () => void;
@@ -233,6 +234,30 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
       // If not ok (e.g., 401 or 404), keep current state unchanged
     } catch {
       // Server not available – keep current state
+    }
+  },
+
+  deleteAccount: async (): Promise<string | null> => {
+    const state = get();
+    if (!state.currentUser || !state.authToken) return 'Nicht angemeldet';
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(state.currentUser)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${state.authToken}` },
+      });
+      if (res.ok) {
+        // Clear user and plan from state and localStorage
+        get().setCurrentUser(null);
+        return null;
+      }
+      try {
+        const data = await res.json() as { error?: string };
+        return data.error ?? 'Löschen fehlgeschlagen';
+      } catch {
+        return 'Löschen fehlgeschlagen';
+      }
+    } catch {
+      return 'Server nicht erreichbar';
     }
   },
 

@@ -89,47 +89,61 @@ class _SemesterSectionState extends State<SemesterSection> {
                   style: const TextStyle(
                       color: Colors.white54, fontSize: 12)),
               const Spacer(),
-              _miniChip('${sem.totalEcts} ECTS', Colors.blue),
-              const SizedBox(width: 4),
-              if (sem.passedEcts > 0) ...[
-                _miniChip('✓ ${sem.passedEcts}', Colors.green),
-                const SizedBox(width: 4),
-              ],
-              if (avg != null) ...[
-                _miniChip('Ø ${avg.toStringAsFixed(1)}', Colors.purple),
-                const SizedBox(width: 4),
-              ],
-              IconButton(
-                icon: const Icon(Icons.add,
-                    color: Colors.white54, size: 18),
-                padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 28, minHeight: 28),
-                tooltip: 'Veranstaltung hinzufügen',
-                onPressed: () => _addLecture(context),
+              const SizedBox(width: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _miniChip('${sem.totalEcts} ECTS', Colors.blue),
+                  if (sem.passedEcts > 0) ...[
+                    const SizedBox(width: 6),
+                    _miniChip('✓ ${sem.passedEcts}', Colors.green),
+                  ],
+                  if (avg != null) ...[
+                    const SizedBox(width: 6),
+                    _miniChip('Ø ${avg.toStringAsFixed(1)}', Colors.purple),
+                  ],
+                ],
               ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert,
-                    color: Colors.white54, size: 18),
-                tooltip: 'Weitere Optionen',
-                padding: EdgeInsets.zero,
-                onSelected: (v) {
-                  if (v == 'delete') {
-                    _delete(context);
-                  } else {
-                    p.sortSemesterLectures(sem.id, v);
-                  }
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(
-                      value: 'date', child: Text('Sortieren: Prüfungsdatum')),
-                  const PopupMenuItem(
-                      value: 'ects', child: Text('Sortieren: ECTS')),
-                  const PopupMenuDivider(),
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: Text('Semester löschen',
-                        style: TextStyle(color: Colors.red.shade400)),
+              const SizedBox(width: 12),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.add_circle_outline,
+                        color: Colors.white54, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Veranstaltung hinzufügen',
+                    onPressed: () => _addLecture(context),
+                  ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert,
+                        color: Colors.white54, size: 20),
+                    tooltip: 'Weitere Optionen',
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onSelected: (v) {
+                      if (v == 'delete') {
+                        _delete(context);
+                      } else {
+                        p.sortSemesterLectures(sem.id, v);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                          value: 'date', child: Text('Sortieren: Prüfungsdatum')),
+                      const PopupMenuItem(
+                          value: 'ects', child: Text('Sortieren: ECTS')),
+                      const PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Semester löschen',
+                            style: TextStyle(color: Colors.red.shade400)),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -176,12 +190,15 @@ class _SemesterSectionState extends State<SemesterSection> {
 
   Widget _miniChip(String text, Color color) => Container(
         padding:
-            const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color: color.withAlpha(40),
-          borderRadius: BorderRadius.circular(4),
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Text(text,
-            style: TextStyle(fontSize: 10, color: color)),
+            style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: FontWeight.w600)),
       );
 }

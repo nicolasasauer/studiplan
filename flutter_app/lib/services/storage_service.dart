@@ -44,6 +44,11 @@ class StorageService {
     await prefs.remove(_kToken);
   }
 
+  Future<void> clearPlan() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kPlan);
+  }
+
   Future<void> saveBaseUrl(String url) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kBaseUrl, url);

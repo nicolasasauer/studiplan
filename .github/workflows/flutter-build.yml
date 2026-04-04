@@ -53,22 +53,26 @@ jobs:
         working-directory: flutter_app
         run: flutter build apk --debug
 
-      # Decode keystore if secret is available (for signed release)
+      # Decode keystore and write key.properties if secrets are available
       - name: Decode keystore
         if: env.KEYSTORE_BASE64 != ''
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        working-directory: flutter_app
-        run: echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-keystore.jks
-
-      # Build release APK; signing config in build.gradle uses env vars if present
-      - name: Build release APK
-        working-directory: flutter_app
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        working-directory: flutter_app
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-keystore.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=../app/release-keystore.jks\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+
+      # Build release APK only when signing secrets are present
+      - name: Build release APK
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        working-directory: flutter_app
         run: flutter build apk --release
 
       - name: Upload debug APK
@@ -79,6 +83,9 @@ jobs:
           retention-days: 30
 
       - name: Upload release APK
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         uses: actions/upload-artifact@v4
         with:
           name: studiumsplaner-release-${{ github.sha }}

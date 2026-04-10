@@ -15,8 +15,12 @@ const MAX_SEMESTERS = 20;
 const isSemesterSeason = (value: unknown): value is SemesterSeason =>
   value === 'winter' || value === 'summer';
 
-const clampSemesterCount = (count: number): number =>
-  Math.min(MAX_SEMESTERS, Math.max(MIN_SEMESTERS, Math.floor(count)));
+const clampSemesterCount = (count: number | null | undefined): number => {
+  if (count === null || count === undefined || !Number.isFinite(count)) {
+    return DEFAULT_REGULAR_SEMESTERS;
+  }
+  return Math.min(MAX_SEMESTERS, Math.max(MIN_SEMESTERS, Math.floor(count)));
+};
 
 const getSeasonForSemester = (
   semesterNumber: number,

@@ -304,7 +304,7 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
   };
 
   let syncPromise: Promise<void> | null = null;
-  let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+  let syncTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
 
   const queueServerSync = (): void => {
     if (syncPromise) return;
@@ -347,7 +347,7 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
           );
 
           clearTimeout(syncTimeout);
-          syncTimeout = null;
+          syncTimeout = undefined;
 
           if (!res.ok) {
             const fallback =
@@ -373,7 +373,7 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
           }
         } catch (err) {
           clearTimeout(syncTimeout);
-          syncTimeout = null;
+          syncTimeout = undefined;
 
           if (err instanceof Error && err.name === 'AbortError') {
             set({
@@ -414,7 +414,7 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
     })().finally(() => {
       syncPromise = null;
       clearTimeout(syncTimeout);
-      syncTimeout = null;
+      syncTimeout = undefined;
     });
   };
 

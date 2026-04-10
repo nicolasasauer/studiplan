@@ -102,7 +102,7 @@ export const migrateStudyPlan = (raw: unknown): StudyPlan => {
     : DEFAULT_START_SEASON;
 
   const regularSemesters = clampSemesterCount(
-    typeof data.regularSemesters === 'number'
+    typeof data.regularSemesters === 'number' && data.regularSemesters !== null
       ? data.regularSemesters
       : Array.isArray(data.semesters)
         ? data.semesters.length
@@ -123,7 +123,7 @@ export const migrateStudyPlan = (raw: unknown): StudyPlan => {
 
           const candidate = semesterLike as Partial<Semester>;
           const number =
-            typeof candidate.number === 'number' && Number.isFinite(candidate.number)
+            typeof candidate.number === 'number' && candidate.number !== null && Number.isFinite(candidate.number)
               ? Math.max(1, Math.floor(candidate.number))
               : index + 1;
           const semesterId =

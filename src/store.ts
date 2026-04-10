@@ -52,9 +52,11 @@ const normalizeLecture = (
   }
 
   const lecture = { ...(lectureLike as Lecture) };
-  if (lecture.grade === null) {
-    lecture.grade = undefined;
-  }
+  // Convert null to undefined for optional fields
+  if (lecture.grade === null) lecture.grade = undefined;
+  if (lecture.examDate === null) lecture.examDate = undefined;
+  if (lecture.passed === null) lecture.passed = undefined;
+  if (lecture.oralExam === null) lecture.oralExam = undefined;
   if (semesterId) {
     lecture.semesterId = semesterId;
   } else {

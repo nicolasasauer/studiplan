@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showCreate = false;
   String? _pendingUser;
   bool _needsPassword = false;
+  bool _switchingMode = false;
 
   final _pwCtrl = TextEditingController();
   final _newUserCtrl = TextEditingController();
@@ -143,17 +144,35 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _useLocally() async {
-    await context.read<StudyPlanProvider>().enterLocalMode();
-    if (!mounted) return;
-    _resetLoginState();
-    await _fetchUsers();
+    setState(() => _switchingMode = true);
+    try {
+      await context.read<StudyPlanProvider>().enterLocalMode();
+      if (!mounted) return;
+      _resetLoginState();
+      await _fetchUsers();
+    } catch (e) {
+      if (mounted) {
+        _showError('Fehler beim Umschalten in lokalen Modus: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _switchingMode = false);
+    }
   }
 
   Future<void> _useServerMode() async {
-    await context.read<StudyPlanProvider>().leaveLocalMode();
-    if (!mounted) return;
-    _resetLoginState();
-    await _fetchUsers();
+    setState(() => _switchingMode = true);
+    try {
+      await context.read<StudyPlanProvider>().leaveLocalMode();
+      if (!mounted) return;
+      _resetLoginState();
+      await _fetchUsers();
+    } catch (e) {
+      if (mounted) {
+        _showError('Fehler beim Umschalten in Server-Modus: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _switchingMode = false);
+    }
   }
 
   void _resetLoginState() {
@@ -163,6 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _showCreate = false;
       _pendingUser = null;
       _needsPassword = false;
+      _switchingMode = false;
       _pwCtrl.clear();
       _newUserCtrl.clear();
       _newPwCtrl.clear();
@@ -190,9 +210,42 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_switchingMode)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade900.withAlpha(100),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade700),
+                        ),
+                        child: const Row(
+                          children: [
+                            SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.blue,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Wechsel zum anderen Modus läuft …',
+                                style: TextStyle(color: Colors.blue),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_switchingMode)
+                      const SizedBox(height: 16),
                     if (!provider.localMode && provider.baseUrl.isEmpty)
                       _buildNoBanner(),
-                    const SizedBox(height: 16),
+                    if (!provider.localMode && provider.baseUrl.isEmpty)
+                      const SizedBox(height: 16),
                     if (_needsPassword && _pendingUser != null)
                       _buildPasswordCard(provider)
                     else if (_showCreate)
@@ -277,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
           foregroundColor: Colors.white70,
           side: const BorderSide(color: Colors.white24),
         ),
-        onPressed: provider.isLoading
+        onPressed: provider.isLoading || _switchingMode
             ? null
             : provider.localMode
                 ? _useServerMode

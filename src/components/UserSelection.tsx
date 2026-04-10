@@ -32,20 +32,42 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const fetchWithTimeout = async (
+    url: string,
+    options?: RequestInit,
+    timeoutMs = 10000,
+  ): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
   const loadUsers = async () => {
     setUsersLoading(true);
     setError('');
 
     try {
-      const res = await fetch('/api/users');
+      const res = await fetchWithTimeout('/api/users');
       if (!res.ok) {
         throw new Error('Benutzer konnten nicht geladen werden.');
       }
       const data = (await res.json()) as string[];
       setUsers(data);
-    } catch {
+    } catch (err) {
       setUsers([]);
-      setError('Benutzerliste konnte nicht geladen werden. Server nicht erreichbar.');
+      const errorMsg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Anfrage zeitüberschritten. Server nicht erreichbar.'
+          : 'Benutzerliste konnte nicht geladen werden. Server nicht erreichbar.';
+      setError(errorMsg);
     } finally {
       setUsersLoading(false);
     }
@@ -60,10 +82,13 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
     token: string,
   ): Promise<string | null> => {
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(username)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithTimeout(
+        `/api/users/${encodeURIComponent(username)}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (res.ok) {
         setUsers((prev) => prev.filter((user) => user !== username));
@@ -76,8 +101,12 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
       } catch {
         return 'Loeschen fehlgeschlagen';
       }
-    } catch {
-      return 'Server nicht erreichbar';
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Anfrage zeitüberschritten. Benutzer konnte nicht gelöscht werden.'
+          : 'Server nicht erreichbar';
+      return errorMsg;
     }
   };
 
@@ -89,7 +118,7 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetchWithTimeout('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username }),
@@ -112,8 +141,12 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
       }
 
       setError('Fehler beim Anmelden');
-    } catch {
-      setError('Server nicht erreichbar');
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Anfrage zeitüberschritten. Server nicht erreichbar.'
+          : 'Server nicht erreichbar';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -125,7 +158,7 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetchWithTimeout('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: selectedUser, password }),
@@ -159,8 +192,12 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
       }
 
       onLogin(resolvedUser, data.token);
-    } catch {
-      setError('Server nicht erreichbar');
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Anfrage zeitüberschritten. Server nicht erreichbar.'
+          : 'Server nicht erreichbar';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -177,7 +214,7 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
         body.password = newPassword;
       }
 
-      const res = await fetch('/api/users', {
+      const res = await fetchWithTimeout('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -193,8 +230,12 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
       } else {
         setError(data.error ?? 'Fehler beim Erstellen');
       }
-    } catch {
-      setError('Server nicht erreichbar');
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Anfrage zeitüberschritten. Server nicht erreichbar.'
+          : 'Server nicht erreichbar';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -206,7 +247,7 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetchWithTimeout('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: deleteConfirmUser }),
@@ -234,8 +275,12 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
       } else {
         setError(data.error ?? 'Loeschen fehlgeschlagen');
       }
-    } catch {
-      setError('Server nicht erreichbar');
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Anfrage zeitüberschritten. Benutzer konnte nicht gelöscht werden.'
+          : 'Server nicht erreichbar';
+      setError(errorMsg);
     } finally {
       setDeleteConfirmUser(null);
       setDeleteLoading(false);

@@ -294,6 +294,7 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
   };
 
   let syncPromise: Promise<void> | null = null;
+  let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
   const queueServerSync = (): void => {
     if (syncPromise) return;
@@ -319,6 +320,9 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
         });
 
         try {
+          const controller = new AbortController();
+          syncTimeout = setTimeout(() => controller.abort(), 10000);
+
           const res = await fetch(
             `/api/plan/${encodeURIComponent(state.currentUser)}`,
             {
@@ -328,28 +332,54 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
                 'Authorization': `Bearer ${state.authToken}`,
               },
               body: payload,
+              signal: controller.signal,
             },
           );
+
+          clearTimeout(syncTimeout);
+          syncTimeout = null;
 
           if (!res.ok) {
             const fallback =
               res.status === 401
                 ? 'Sitzung abgelaufen. Bitte erneut anmelden.'
                 : 'Änderungen konnten nicht mit dem Server synchronisiert werden.';
-            set({
-              syncStatus: 'error',
-              syncMessage: await parseErrorMessage(res, fallback),
-              hasUnsyncedChanges: true,
-            });
+            
+            if (res.status === 401) {
+              get().setCurrentUser(null);
+              set({
+                syncStatus: 'error',
+                syncMessage: 'Sitzung abgelaufen. Bitte erneut anmelden.',
+                hasUnsyncedChanges: false,
+              });
+            } else {
+              set({
+                syncStatus: 'error',
+                syncMessage: await parseErrorMessage(res, fallback),
+                hasUnsyncedChanges: true,
+              });
+            }
             return;
           }
-        } catch {
-          set({
-            syncStatus: 'error',
-            syncMessage:
-              'Änderungen sind nur lokal gespeichert. Server nicht erreichbar.',
-            hasUnsyncedChanges: true,
-          });
+        } catch (err) {
+          clearTimeout(syncTimeout);
+          syncTimeout = null;
+
+          if (err instanceof Error && err.name === 'AbortError') {
+            set({
+              syncStatus: 'error',
+              syncMessage:
+                'Synchronisierung zeitüberschritten. Änderungen sind nur lokal gespeichert.',
+              hasUnsyncedChanges: true,
+            });
+          } else {
+            set({
+              syncStatus: 'error',
+              syncMessage:
+                'Änderungen sind nur lokal gespeichert. Server nicht erreichbar.',
+              hasUnsyncedChanges: true,
+            });
+          }
           return;
         }
 
@@ -373,6 +403,8 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
       }
     })().finally(() => {
       syncPromise = null;
+      clearTimeout(syncTimeout);
+      syncTimeout = null;
     });
   };
 
@@ -429,9 +461,15 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
       });
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const res = await fetch(`/api/plan/${encodeURIComponent(username)}`, {
           headers: { 'Authorization': `Bearer ${token}` },
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (res.ok) {
           applyServerPlan((await res.json()) as unknown, username);
@@ -450,6 +488,16 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
             isConfigured: false,
             syncStatus: 'idle',
             syncMessage: null,
+            hasUnsyncedChanges: false,
+          });
+          return;
+        }
+
+        if (res.status === 401) {
+          get().setCurrentUser(null);
+          set({
+            syncStatus: 'error',
+            syncMessage: 'Sitzung abgelaufen. Bitte erneut anmelden.',
             hasUnsyncedChanges: false,
           });
           return;
@@ -479,14 +527,17 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
           syncMessage: fallbackMessage,
           hasUnsyncedChanges: false,
         });
-      } catch {
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === 'AbortError';
         const cachedPlan = readCachedPlan(username);
+        
         if (cachedPlan) {
           set({
             ...cachedPlan,
             syncStatus: 'error',
-            syncMessage:
-              'Gespeicherter Browser-Stand geladen. Server nicht erreichbar.',
+            syncMessage: isTimeout
+              ? 'Synchronisierung zeitüberschritten. Gespeicherter Browser-Stand geladen.'
+              : 'Gespeicherter Browser-Stand geladen. Server nicht erreichbar.',
             hasUnsyncedChanges: false,
           });
           writeCachedPlan(cachedPlan, username);
@@ -495,8 +546,9 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
             ...defaultPlan,
             isConfigured: false,
             syncStatus: 'error',
-            syncMessage:
-              'Plan konnte nicht geladen werden. Server nicht erreichbar.',
+            syncMessage: isTimeout
+              ? 'Synchronisierung zeitüberschritten. Plan konnte nicht geladen werden.'
+              : 'Plan konnte nicht geladen werden. Server nicht erreichbar.',
             hasUnsyncedChanges: false,
           });
         }
@@ -515,12 +567,18 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
       }
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const res = await fetch(
           `/api/plan/${encodeURIComponent(state.currentUser)}`,
           {
             headers: { 'Authorization': `Bearer ${state.authToken}` },
+            signal: controller.signal,
           },
         );
+
+        clearTimeout(timeoutId);
 
         if (res.ok) {
           applyServerPlan((await res.json()) as unknown, state.currentUser);
@@ -530,13 +588,14 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
             hasUnsyncedChanges: false,
           });
         } else if (res.status === 401) {
+          get().setCurrentUser(null);
           set({
             syncStatus: 'error',
             syncMessage: 'Sitzung abgelaufen. Bitte erneut anmelden.',
           });
         }
       } catch {
-        // Keep the visible plan unchanged when the background refresh fails.
+        // Fehler im Hintergrund - Plan bleibt unverändert sichtbar
       }
     },
 
@@ -545,13 +604,19 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
       if (!state.currentUser || !state.authToken) return 'Nicht angemeldet';
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const res = await fetch(
           `/api/users/${encodeURIComponent(state.currentUser)}`,
           {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${state.authToken}` },
+            signal: controller.signal,
           },
         );
+
+        clearTimeout(timeoutId);
 
         if (res.ok) {
           clearCachedPlan(state.currentUser);
@@ -559,8 +624,16 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
           return null;
         }
 
+        if (res.status === 401) {
+          get().setCurrentUser(null);
+          return 'Sitzung abgelaufen.';
+        }
+
         return await parseErrorMessage(res, 'Löschen fehlgeschlagen');
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return 'Anfrage zeitüberschritten.';
+        }
         return 'Server nicht erreichbar';
       }
     },

@@ -133,9 +133,31 @@ class _MainScreenState extends State<MainScreen> {
           initialName: p.plan.planName,
           initialSemesters: p.plan.regularSemesters,
           initialSeason: p.plan.startSeason,
-          onSave: (name, n, season) => p.initializePlan(name, n, season),
+          onSave: (name, n, season) async {
+            try {
+              await p.initializePlan(name, n, season);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Fehler beim Erstellen des Plans: $e'),
+                    backgroundColor: Colors.red.shade700,
+                  ),
+                );
+              }
+            }
+          },
         ),
       );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dialog-Fehler: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
     } finally {
       _setupDialogOpen = false;
     }

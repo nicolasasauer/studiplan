@@ -268,7 +268,9 @@ app.get('/api/plan/:username', apiLimiter, (req, res) => {
     return res.status(400).json({ error: 'Ungueltiger Benutzername' });
   }
 
-  if (!requireAuth(req, res, username)) return;
+  if (!requireAuth(req, res, username)) {
+    return;
+  }
 
   const user = stmtGetUserByName.get(username);
   if (!user) {

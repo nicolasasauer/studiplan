@@ -322,58 +322,92 @@ class StudyPlanProvider extends ChangeNotifier {
   }
 
   Future<void> addSemester() async {
-    final lastNum = _plan.semesters.isEmpty
-        ? 0
-        : _plan.semesters.map((s) => s.number).reduce((a, b) => a > b ? a : b);
-    final lastSeason = _plan.semesters.isEmpty
-        ? (_plan.startSeason == 'winter' ? 'summer' : 'winter')
-        : _plan.semesters.last.season;
-    final newSeason = lastSeason == 'winter' ? 'summer' : 'winter';
-    _plan.semesters.add(
-      Semester(id: _uuid.v4(), number: lastNum + 1, season: newSeason),
-    );
-    await _save();
+    try {
+      final lastNum = _plan.semesters.isEmpty
+          ? 0
+          : _plan.semesters.map((s) => s.number).reduce((a, b) => a > b ? a : b);
+      final lastSeason = _plan.semesters.isEmpty
+          ? (_plan.startSeason == 'winter' ? 'summer' : 'winter')
+          : _plan.semesters.last.season;
+      final newSeason = lastSeason == 'winter' ? 'summer' : 'winter';
+      _plan.semesters.add(
+        Semester(id: _uuid.v4(), number: lastNum + 1, season: newSeason),
+      );
+      await _save();
+    } catch (e) {
+      print('Error in addSemester: $e');
+      rethrow;
+    }
   }
 
   Future<void> removeSemester(String semesterId) async {
-    final sem = _plan.semesters.firstWhere((s) => s.id == semesterId);
-    for (final l in sem.lectures) {
-      _plan.parkingLot.add(l.copyWith(semesterId: null));
+    try {
+      final sem = _plan.semesters.firstWhereOrNull((s) => s.id == semesterId);
+      if (sem == null) {
+        print('Warning: Semester $semesterId not found for removal');
+        return;
+      }
+      for (final l in sem.lectures) {
+        _plan.parkingLot.add(l.copyWith(semesterId: null));
+      }
+      _plan.semesters.removeWhere((s) => s.id == semesterId);
+      await _save();
+    } catch (e) {
+      print('Error in removeSemester: $e');
+      rethrow;
     }
-    _plan.semesters.removeWhere((s) => s.id == semesterId);
-    await _save();
   }
 
   Future<void> addLecture(Lecture lecture, String? semesterId) async {
-    if (semesterId != null) {
-      final sem = _plan.semesters.firstWhere((s) => s.id == semesterId);
-      sem.lectures.add(lecture.copyWith(semesterId: semesterId));
-    } else {
-      _plan.parkingLot.add(lecture.copyWith(semesterId: null));
+    try {
+      if (semesterId != null) {
+        final sem = _plan.semesters.firstWhere((s) => s.id == semesterId,
+            orElse: () => null as dynamic);
+        if (sem == null) {
+          print('Warning: Semester $semesterId not found for adding lecture');
+          return;
+        }
+        sem.lectures.add(lecture.copyWith(semesterId: semesterId));
+      } else {
+        _plan.parkingLot.add(lecture.copyWith(semesterId: null));
+      }
+      await _save();
+    } catch (e) {
+      print('Error in addLecture: $e');
+      rethrow;
     }
-    await _save();
   }
 
   Future<void> updateLecture(Lecture updated) async {
-    final location = _findLectureLocation(updated.id);
-    if (location == null) return;
-
-    if (location.semesterId == updated.semesterId) {
-      if (location.semesterId != null) {
-        final sem =
-            _plan.semesters.firstWhere((s) => s.id == location.semesterId);
-        sem.lectures[location.index] = updated.copyWith(
-          semesterId: location.semesterId,
-        );
-      } else {
-        _plan.parkingLot[location.index] = updated.copyWith(semesterId: null);
+    try {
+      final location = _findLectureLocation(updated.id);
+      if (location == null) {
+        print('Warning: Lecture ${updated.id} not found for update');
+        return;
       }
-    } else {
-      _removeLectureAt(location);
-      _insertLecture(updated, updated.semesterId);
-    }
 
-    await _save();
+      if (location.semesterId == updated.semesterId) {
+        if (location.semesterId != null) {
+          final sem = _plan.semesters.firstWhere((s) => s.id == location.semesterId,
+              orElse: () => null as dynamic);
+          if (sem != null && location.index < sem.lectures.length) {
+            sem.lectures[location.index] = updated.copyWith(
+              semesterId: location.semesterId,
+            );
+          }
+        } else if (location.index < _plan.parkingLot.length) {
+          _plan.parkingLot[location.index] = updated.copyWith(semesterId: null);
+        }
+      } else {
+        _removeLectureAt(location);
+        _insertLecture(updated, updated.semesterId);
+      }
+
+      await _save();
+    } catch (e) {
+      print('Error in updateLecture: $e');
+      rethrow;
+    }
   }
 
   Future<void> removeLecture(String id, String? semesterId) async {
@@ -384,21 +418,31 @@ class StudyPlanProvider extends ChangeNotifier {
   }
 
   Future<void> toggleLecturePassed(String id, String? semesterId) async {
-    final location = _findLectureLocation(id);
-    if (location == null) return;
+    try {
+      final location = _findLectureLocation(id);
+      if (location == null) {
+        print('Warning: Lecture $id not found for toggle passed');
+        return;
+      }
 
-    if (location.semesterId != null) {
-      final sem =
-          _plan.semesters.firstWhere((s) => s.id == location.semesterId);
-      final lecture = sem.lectures[location.index];
-      sem.lectures[location.index] = lecture.copyWith(passed: !lecture.passed);
-    } else {
-      final lecture = _plan.parkingLot[location.index];
-      _plan.parkingLot[location.index] =
-          lecture.copyWith(passed: !lecture.passed);
+      if (location.semesterId != null) {
+        final sem = _plan.semesters.firstWhere((s) => s.id == location.semesterId,
+            orElse: () => null as dynamic);
+        if (sem != null && location.index < sem.lectures.length) {
+          final lecture = sem.lectures[location.index];
+          sem.lectures[location.index] = lecture.copyWith(passed: !lecture.passed);
+        }
+      } else if (location.index < _plan.parkingLot.length) {
+        final lecture = _plan.parkingLot[location.index];
+        _plan.parkingLot[location.index] =
+            lecture.copyWith(passed: !lecture.passed);
+      }
+
+      await _save();
+    } catch (e) {
+      print('Error in toggleLecturePassed: $e');
+      rethrow;
     }
-
-    await _save();
   }
 
   Future<void> moveLectureToSemester(

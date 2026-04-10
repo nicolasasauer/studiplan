@@ -43,7 +43,7 @@ class StudyPlanProvider extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       _baseUrl = await _storage.loadBaseUrl();
-      _localMode = await _storage.loadLocalMode();
+      _localMode = (await _storage.loadLocalMode()) ?? _baseUrl.isEmpty;
 
       final savedUser = await _storage.loadUser();
       if (_localMode) {

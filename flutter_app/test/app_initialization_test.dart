@@ -31,7 +31,7 @@ class _DelayedStorageService extends StorageService {
   }
 
   @override
-  Future<bool> loadLocalMode() async {
+  Future<bool?> loadLocalMode() async {
     await initGate.future;
     return localMode;
   }

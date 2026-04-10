@@ -117,9 +117,9 @@ class StorageService {
     await prefs.setBool(_kLocalMode, enabled);
   }
 
-  Future<bool> loadLocalMode() async {
+  Future<bool?> loadLocalMode() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_kLocalMode) ?? false;
+    return prefs.getBool(_kLocalMode);
   }
 
   Future<void> saveLocalUsers(List<LocalUserAccount> users) async {

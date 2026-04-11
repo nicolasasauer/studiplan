@@ -371,8 +371,7 @@ class StudyPlanProvider extends ChangeNotifier {
   Future<void> addLecture(Lecture lecture, String? semesterId) async {
     try {
       if (semesterId != null) {
-        final sem = _plan.semesters.firstWhere((s) => s.id == semesterId,
-            orElse: () => null as dynamic);
+        final sem = _plan.semesters.firstWhereOrNull((s) => s.id == semesterId);
         if (sem == null) {
           print('Warning: Semester $semesterId not found for adding lecture');
           return;
@@ -398,8 +397,7 @@ class StudyPlanProvider extends ChangeNotifier {
 
       if (location.semesterId == updated.semesterId) {
         if (location.semesterId != null) {
-          final sem = _plan.semesters.firstWhere((s) => s.id == location.semesterId,
-              orElse: () => null as dynamic);
+          final sem = _plan.semesters.firstWhereOrNull((s) => s.id == location.semesterId);
           if (sem != null && location.index < sem.lectures.length) {
             sem.lectures[location.index] = updated.copyWith(
               semesterId: location.semesterId,
@@ -436,8 +434,7 @@ class StudyPlanProvider extends ChangeNotifier {
       }
 
       if (location.semesterId != null) {
-        final sem = _plan.semesters.firstWhere((s) => s.id == location.semesterId,
-            orElse: () => null as dynamic);
+        final sem = _plan.semesters.firstWhereOrNull((s) => s.id == location.semesterId);
         if (sem != null && location.index < sem.lectures.length) {
           final lecture = sem.lectures[location.index];
           sem.lectures[location.index] = lecture.copyWith(passed: !lecture.passed);

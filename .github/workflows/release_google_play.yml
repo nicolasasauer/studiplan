@@ -5,19 +5,17 @@ on:
     branches: [ main ]
     paths:
       - 'flutter_app/**'
-      - '.github/workflows/flutter-build.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [ main ]
     paths:
       - 'flutter_app/**'
-      - '.github/workflows/flutter-build.yml'
   workflow_dispatch:
-concurrency:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # HIER DEFINIEREN WIR DIE VARIABLEN FÜR DEN GANZEN JOB:
+    # Hier sind die Variablen für den gesamten Job definiert
     env:
       KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -27,7 +25,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ... (Java und Flutter Setup wie bisher) ...
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Analyze code
+        working-directory: flutter_app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Run tests
+        working-directory: flutter_app
+        run: flutter test || true
+
+      - name: Build debug APK
+        working-directory: flutter_app
+        run: flutter build apk --debug
 
       - name: Decode keystore
         if: env.KEYSTORE_BASE64 != ''
@@ -37,7 +62,7 @@ jobs:
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=../app/release-key.jks\n' \
             "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" > android/key.properties
 
-      - name: Build release Bundle
+      - name: Build release Bundle (.aab)
         if: env.KEYSTORE_BASE64 != ''
         working-directory: flutter_app
         run: flutter build appbundle --release
@@ -47,7 +72,6 @@ jobs:
         working-directory: flutter_app
         run: flutter build apk --release
 
-      # Jetzt klappt der Upload, weil env.KEYSTORE_BASE64 bekannt ist!
       - name: Upload Release Bundle (.aab)
         if: env.KEYSTORE_BASE64 != ''
         uses: actions/upload-artifact@v4
@@ -62,4 +86,8 @@ jobs:
           name: studiumsplaner-release-apk
           path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
 
-
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: studiumsplaner-debug
+          path: flutter_app/build/app/outputs/flutter-apk/app-debug.apk

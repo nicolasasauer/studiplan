@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:studi_plan/main.dart' as app;
@@ -12,9 +13,9 @@ Future<void> _addLecture(
 ) async {
   await tester.tap(find.byTooltip('Veranstaltung hinzufügen').at(semesterIndex));
   await tester.pumpAndSettle();
-  await tester.enterText(find.byType(TextFormField).first, name);
+  await tester.enterText(find.widgetWithText(TextField, 'Name *'), name);
   await tester.pumpAndSettle();
-  await tester.enterText(find.byType(TextFormField).at(1), ects);
+  await tester.enterText(find.widgetWithText(TextField, 'ECTS *'), ects);
   await tester.pumpAndSettle();
   await tester.tap(find.text('Speichern'));
   await tester.pumpAndSettle(const Duration(seconds: 1));
@@ -31,12 +32,24 @@ void main() {
     await binding.convertFlutterSurfaceToImage();
     await binding.takeScreenshot('01_login');
 
-    // ── Enter local mode ──────────────────────────────────────────────────────
-    await tester.tap(find.text('Lokal verwenden (kein Server)'));
+    // ── Enter local mode and create a local user ──────────────────────────────
+    // Ohne Server-URL startet die App bereits im lokalen Modus.
+    final useLocally = find.text('Lokal verwenden (kein Server)');
+    if (useLocally.evaluate().isNotEmpty) {
+      await tester.tap(useLocally);
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+    }
+    await tester.tap(find.text('Neuen lokalen Benutzer erstellen'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Benutzername *'), 'Studi');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Erstellen & Anmelden'));
     await tester.pumpAndSettle(const Duration(seconds: 3));
 
     // ── Plan setup dialog: set plan name, keep 6 semesters ───────────────────
-    await tester.enterText(find.byType(TextFormField).first, 'Informatik B.Sc.');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Planname'), 'Informatik B.Sc.');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Plan starten'));
     await tester.pumpAndSettle(const Duration(seconds: 2));

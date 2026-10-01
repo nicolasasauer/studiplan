@@ -9,7 +9,8 @@ Future<void> main() => integrationDriver(
         if (rawResults == null) return;
         if (rawResults is! Map) return;
         final screenshotResults = rawResults.cast<String, String>();
-        final dir = Directory('screenshots');
+        // Unter build/, damit der README-Ordner screenshots/ unberührt bleibt.
+        final dir = Directory('build/screenshots');
         if (!dir.existsSync()) dir.createSync(recursive: true);
         for (final entry in screenshotResults.entries) {
           final bytes = base64Decode(entry.value);

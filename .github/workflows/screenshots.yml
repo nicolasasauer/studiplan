@@ -55,7 +55,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: screenshots-7inch-${{ github.sha }}
-          path: flutter_app/screenshots/
+          path: flutter_app/build/screenshots/
           retention-days: 30
 
   screenshots-10inch:
@@ -109,5 +109,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: screenshots-10inch-${{ github.sha }}
-          path: flutter_app/screenshots/
+          path: flutter_app/build/screenshots/
           retention-days: 30

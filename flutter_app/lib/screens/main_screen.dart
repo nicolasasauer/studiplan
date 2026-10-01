@@ -36,6 +36,24 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _export(StudyPlanProvider p) async {
     try {
       final json = p.exportJson();
+      // Auf dem Desktop gibt es kein Teilen-Menü für Dateien (Linux), dort
+      // wird direkt gespeichert.
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final path = await FilePicker.platform.saveFile(
+          dialogTitle: 'Plan exportieren',
+          fileName: 'studi_plan_export.json',
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+        );
+        if (path == null) return;
+        await File(path).writeAsString(json);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Plan gespeichert: $path')),
+          );
+        }
+        return;
+      }
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/studi_plan_export.json');
       await file.writeAsString(json);

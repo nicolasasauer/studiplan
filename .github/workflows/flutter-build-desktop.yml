@@ -1,0 +1,88 @@
+name: Build Flutter Desktop
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'flutter_app/**'
+      - '.github/workflows/flutter-build-desktop.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'flutter_app/**'
+      - '.github/workflows/flutter-build-desktop.yml'
+  workflow_dispatch:
+
+jobs:
+  linux:
+    # Ältere Ubuntu-Version: Das Ergebnis läuft dann auch auf Distributionen
+    # mit älterer glibc.
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build Linux release
+        working-directory: flutter_app
+        run: flutter build linux --release
+
+      - name: Package bundle
+        working-directory: flutter_app/build/linux/x64/release
+        run: tar czf studiplan-linux-x64.tar.gz --transform 's/^bundle/studiplan/' bundle
+
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: studiplan-linux-x64-${{ github.sha }}
+          path: flutter_app/build/linux/x64/release/studiplan-linux-x64.tar.gz
+          retention-days: 30
+
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build Windows release
+        working-directory: flutter_app
+        run: flutter build windows --release
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: studiplan-windows-x64-${{ github.sha }}
+          path: flutter_app/build/windows/x64/runner/Release/
+          retention-days: 30

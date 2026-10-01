@@ -83,7 +83,16 @@ flutter run           # App auf verbundenem Geraet/Emulator starten
 flutter build apk     # Release-APK bauen
 flutter test          # Unit-Tests ausfuehren
 flutter analyze       # Statische Code-Analyse (flutter_lints)
+flutter build windows # Windows-App bauen (nur unter Windows)
+flutter build linux   # Linux-App bauen (nur unter Linux)
 ```
+
+### Desktop (Windows, Linux)
+
+- Windows: Visual Studio 2022 mit der Workload "Desktopentwicklung mit C++". Ergebnis in `build/windows/x64/runner/Release/`, der ganze Ordner wird benötigt.
+- Linux: `clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev`. Ergebnis in `build/linux/x64/release/bundle/`. Für die Dateidialoge (Import/Export) muss `zenity` oder `kdialog` installiert sein.
+- Der Workflow `.github/workflows/flutter-build-desktop.yml` baut beide und stellt sie als Artefakte bereit.
+- Export speichert auf dem Desktop über einen Speichern-Dialog statt über das Teilen-Menü.
 
 ## Serverkonfiguration
 

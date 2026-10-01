@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import '../models/archived_local_plan.dart';
 import '../models/lecture.dart';
 import '../models/local_user_account.dart';
 import '../models/semester.dart';
@@ -288,9 +289,10 @@ class StudyPlanProvider extends ChangeNotifier {
   /// frei: meldet sich am Server an (oder legt ein Konto an), lädt den Plan
   /// hoch und wechselt in den Servermodus.
   ///
-  /// Der lokale Benutzer und sein Plan bleiben unverändert erhalten. Bis zur
-  /// Umstellung (Anmeldung und Prüfung des Serverplans erfolgreich) ändert
-  /// sich am Zustand der App nichts.
+  /// Der lokale Benutzer wird danach archiviert (siehe [loadLocalArchive])
+  /// und lässt sich im lokalen Modus wiederherstellen. Bis zur Umstellung
+  /// (Anmeldung und Prüfung des Serverplans erfolgreich) ändert sich am
+  /// Zustand der App nichts.
   Future<ShareLocalPlanResult> shareLocalPlan({
     required String serverUrl,
     required String username,
@@ -347,8 +349,10 @@ class StudyPlanProvider extends ChangeNotifier {
       final useServerPlan =
           serverHasPlan && resolution == ServerPlanResolution.keepServer;
 
-      // Ab hier: in den Servermodus wechseln.
+      // Ab hier: lokalen Benutzer archivieren und in den Servermodus
+      // wechseln.
       final localPlan = StudyPlan.fromJson(_plan.toJson());
+      await _archiveLocalUser(currentUser!, localPlan, sharedAs: remoteUser);
       _syncTimer?.cancel();
       _baseUrl = url;
       _localMode = false;
@@ -375,6 +379,75 @@ class StudyPlanProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Archivierte lokale Benutzer samt Plan, neueste zuerst.
+  Future<List<ArchivedLocalPlan>> loadLocalArchive() async {
+    final archive = await _storage.loadLocalArchive();
+    archive.sort((a, b) => b.archivedAt.compareTo(a.archivedAt));
+    return archive;
+  }
+
+  /// Stellt einen archivierten Plan als lokalen Benutzer wieder her. Ist der
+  /// Name vergeben, wird eine Nummer angehängt. Gibt den Namen des
+  /// wiederhergestellten Benutzers zurück oder `null`, wenn es den Eintrag
+  /// nicht gibt.
+  Future<String?> restoreArchivedPlan(String id) async {
+    final archive = await _storage.loadLocalArchive();
+    final entry = archive.firstWhereOrNull((e) => e.id == id);
+    if (entry == null) return null;
+
+    final users = await _storage.loadLocalUsers();
+    final taken = users.map((u) => u.username).toSet();
+    var name = entry.username;
+    for (var n = 2; taken.contains(name); n++) {
+      final suffix = ' $n';
+      final base = entry.username.length + suffix.length > 50
+          ? entry.username.substring(0, 50 - suffix.length)
+          : entry.username;
+      name = '$base$suffix';
+    }
+
+    // Erst Plan und Benutzer anlegen, dann aus dem Archiv entfernen.
+    await _storage.savePlan(entry.plan, username: name, local: true);
+    await _storage.saveLocalUsers([
+      ...users,
+      LocalUserAccount(username: name, passwordHash: entry.passwordHash),
+    ]..sort((a, b) =>
+        a.username.toLowerCase().compareTo(b.username.toLowerCase())));
+    await _storage.saveLocalArchive(
+        archive.where((e) => e.id != id).toList());
+    return name;
+  }
+
+  Future<void> deleteArchivedPlan(String id) async {
+    final archive = await _storage.loadLocalArchive();
+    await _storage.saveLocalArchive(
+        archive.where((e) => e.id != id).toList());
+  }
+
+  Future<void> _archiveLocalUser(
+    String username,
+    StudyPlan plan, {
+    String? sharedAs,
+  }) async {
+    final users = await _storage.loadLocalUsers();
+    final account = users.firstWhereOrNull((u) => u.username == username);
+    final archive = await _storage.loadLocalArchive();
+    archive.add(ArchivedLocalPlan(
+      id: _uuid.v4(),
+      username: username,
+      passwordHash: account?.passwordHash,
+      archivedAt: DateTime.now(),
+      sharedAs: sharedAs,
+      plan: plan,
+    ));
+    // Erst das Archiv schreiben, dann den Benutzer entfernen: So ist der
+    // Plan zu jedem Zeitpunkt mindestens einmal gespeichert.
+    await _storage.saveLocalArchive(archive);
+    await _storage.saveLocalUsers(
+        users.where((u) => u.username != username).toList());
+    await _storage.clearPlan(username: username, local: true);
   }
 
   Future<void> enterLocalMode() async {

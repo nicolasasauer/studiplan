@@ -79,7 +79,8 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
           content: const Text(
             'Auf dem Server gibt es für dieses Konto bereits einen Plan. '
             'Welcher soll künftig synchronisiert werden?\n\n'
-            'Der lokale Plan bleibt in jedem Fall im lokalen Modus erhalten.',
+            'Der lokale Plan wird in jedem Fall archiviert und lässt sich '
+            'im lokalen Modus wiederherstellen.',
           ),
           actions: [
             TextButton(
@@ -129,8 +130,8 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
             const SizedBox(height: 8),
             const Text(
               'Der Plan wird auf den Server geladen und ist danach auf allen '
-              'Geräten mit diesem Konto verfügbar. Der lokale Benutzer bleibt '
-              'erhalten.',
+              'Geräten mit diesem Konto verfügbar. Der lokale Benutzer wird '
+              'archiviert und lässt sich im lokalen Modus wiederherstellen.',
               style: TextStyle(color: Colors.white54, fontSize: 13),
             ),
             const SizedBox(height: 16),

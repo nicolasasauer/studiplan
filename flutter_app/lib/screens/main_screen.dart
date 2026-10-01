@@ -79,7 +79,8 @@ class _MainScreenState extends State<MainScreen> {
     );
     if (shared == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Plan wird jetzt mit dem Server synchronisiert'),
+        content: Text('Plan wird jetzt mit dem Server synchronisiert. '
+            'Die lokale Kopie liegt im Archiv.'),
         backgroundColor: Colors.green,
       ));
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/archived_local_plan.dart';
 import '../providers/study_plan_provider.dart';
 import '../widgets/server_settings_dialog.dart';
 
@@ -12,6 +13,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   List<String> _users = [];
+  List<ArchivedLocalPlan> _archive = [];
   bool _loadingUsers = false;
   String? _fetchError;
   bool _showCreate = false;
@@ -44,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!provider.localMode && provider.baseUrl.isEmpty) {
       setState(() {
         _users = [];
+        _archive = [];
         _fetchError =
             'Server-URL nicht konfiguriert. Bitte Einstellungen prüfen.';
       });
@@ -57,9 +60,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final result = await provider.getUsersResult();
+      final archive = provider.localMode
+          ? await provider.loadLocalArchive()
+          : <ArchivedLocalPlan>[];
       if (mounted) {
         setState(() {
           _users = result.users;
+          _archive = archive;
           _fetchError = result.error;
         });
       }
@@ -103,6 +110,50 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       setState(() => _users.remove(username));
     }
+  }
+
+  Future<void> _restoreArchived(ArchivedLocalPlan entry) async {
+    final provider = context.read<StudyPlanProvider>();
+    final name = await provider.restoreArchivedPlan(entry.id);
+    if (!mounted) return;
+    if (name == null) {
+      _showError('Archiveintrag nicht gefunden');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('"$name" wiederhergestellt'),
+        backgroundColor: Colors.green,
+      ));
+    }
+    await _fetchUsers();
+  }
+
+  Future<void> _deleteArchived(ArchivedLocalPlan entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Archivierten Plan löschen?'),
+        content: Text(
+          'Der archivierte Plan von "${entry.username}" wird von diesem Gerät '
+          'gelöscht. Die Kopie auf dem Server bleibt davon unberührt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await context.read<StudyPlanProvider>().deleteArchivedPlan(entry.id);
+    await _fetchUsers();
   }
 
   Future<void> _loginUser(String username) async {
@@ -252,6 +303,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       _buildCreateCard(provider)
                     else
                       _buildUserListCard(provider, isBusy),
+                    if (provider.localMode &&
+                        _archive.isNotEmpty &&
+                        !_showCreate &&
+                        !_needsPassword) ...[
+                      const SizedBox(height: 12),
+                      _buildArchiveCard(isBusy),
+                    ],
                     const SizedBox(height: 12),
                     _buildLocalModeButton(provider),
                   ],
@@ -426,6 +484,67 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
+
+  Widget _buildArchiveCard(bool isBusy) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Archiv',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Lokale Pläne, die zur Synchronisierung freigegeben wurden.',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              for (final entry in _archive)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.inventory_2_outlined,
+                      color: Colors.white54),
+                  title: Text(entry.username),
+                  subtitle: Text(
+                    [
+                      entry.plan.planName,
+                      'archiviert am ${_formatDate(entry.archivedAt)}',
+                      if (entry.sharedAs != null)
+                        'Server-Konto ${entry.sharedAs}',
+                    ].join(' · '),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.unarchive_outlined, size: 20),
+                        tooltip: 'Wiederherstellen',
+                        onPressed:
+                            isBusy ? null : () => _restoreArchived(entry),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Colors.red, size: 20),
+                        tooltip: 'Archivierten Plan löschen',
+                        onPressed:
+                            isBusy ? null : () => _deleteArchived(entry),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+
+  static String _formatDate(DateTime date) {
+    final d = date.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(d.day)}.${two(d.month)}.${d.year}';
+  }
 
   Widget _buildFetchError(String error) => Container(
         padding: const EdgeInsets.all(10),

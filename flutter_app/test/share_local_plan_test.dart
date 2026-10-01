@@ -53,13 +53,20 @@ void main() {
       expect(server.plan!['planName'], 'Lokaler Plan');
       expect(server.users['Neu'], 'geheim');
 
-      // Der lokale Benutzer und sein Plan bleiben erhalten.
+      // Der lokale Benutzer ist archiviert, der Plan bleibt erhalten.
       final storage = StorageService();
       final users = await storage.loadLocalUsers();
-      expect(users.map((u) => u.username), contains('Lokal'));
-      final localPlan = await storage.loadPlan(
-          username: 'Lokal', local: true, fallbackToLegacy: false);
-      expect(localPlan!.planName, 'Lokaler Plan');
+      expect(users.map((u) => u.username), isNot(contains('Lokal')));
+      expect(
+          await storage.loadPlan(
+              username: 'Lokal', local: true, fallbackToLegacy: false),
+          isNull);
+      final archive = await provider.loadLocalArchive();
+      expect(archive, hasLength(1));
+      expect(archive.single.username, 'Lokal');
+      expect(archive.single.sharedAs, 'Neu');
+      expect(archive.single.plan.planName, 'Lokaler Plan');
+      expect(archive.single.plan.semesters, hasLength(3));
 
       // Nach einem Neustart ist die App im Servermodus beim neuen Konto.
       provider.dispose();
@@ -158,6 +165,9 @@ void main() {
       expect(provider.localMode, isTrue);
       expect(provider.currentUser, 'Lokal');
       expect(server.saveCalls, 0);
+      expect(await provider.loadLocalArchive(), isEmpty);
+      expect((await StorageService().loadLocalUsers()).single.username,
+          'Lokal');
       provider.dispose();
     });
 
@@ -199,6 +209,73 @@ void main() {
       expect(offline.hasUnsyncedChanges, isFalse);
 
       offline.dispose();
+    });
+
+    test('restores an archived plan with its password', () async {
+      final server = FakeServer()..plan = null;
+      SharedPreferences.setMockInitialValues({});
+      final provider = StudyPlanProvider(apiFactory: (_) => FakeApi(server));
+      await provider.initialize();
+      await provider.enterLocalMode();
+      await provider.createUser('Lokal', 'pw');
+      await provider.initializePlan('Lokaler Plan', 2, 'summer');
+      await provider.shareLocalPlan(
+        serverUrl: 'http://server.test',
+        username: 'Alice',
+        createAccount: false,
+      );
+
+      // Zurück in den lokalen Modus und wiederherstellen.
+      await provider.logout();
+      await provider.enterLocalMode();
+      final entry = (await provider.loadLocalArchive()).single;
+      final restored = await provider.restoreArchivedPlan(entry.id);
+
+      expect(restored, 'Lokal');
+      expect(await provider.loadLocalArchive(), isEmpty);
+      expect(await provider.login('Lokal', null), 'REQUIRES_PASSWORD');
+      expect(await provider.login('Lokal', 'pw'), isNull);
+      expect(provider.plan.planName, 'Lokaler Plan');
+      expect(provider.plan.semesters, hasLength(2));
+      provider.dispose();
+    });
+
+    test('appends a number when the archived name is taken', () async {
+      final server = FakeServer()..plan = null;
+      final provider = await _localProvider(server);
+      await provider.shareLocalPlan(
+        serverUrl: 'http://server.test',
+        username: 'Alice',
+        createAccount: false,
+      );
+      await provider.logout();
+      await provider.enterLocalMode();
+      await provider.createUser('Lokal', null);
+      await provider.logout();
+
+      final entry = (await provider.loadLocalArchive()).single;
+      expect(await provider.restoreArchivedPlan(entry.id), 'Lokal 2');
+      expect(await provider.getUsers(), ['Lokal', 'Lokal 2']);
+      expect(await provider.login('Lokal 2', null), isNull);
+      expect(provider.plan.planName, 'Lokaler Plan');
+      provider.dispose();
+    });
+
+    test('deletes an archived plan', () async {
+      final server = FakeServer()..plan = null;
+      final provider = await _localProvider(server);
+      await provider.shareLocalPlan(
+        serverUrl: 'http://server.test',
+        username: 'Alice',
+        createAccount: false,
+      );
+
+      final entry = (await provider.loadLocalArchive()).single;
+      await provider.deleteArchivedPlan(entry.id);
+
+      expect(await provider.loadLocalArchive(), isEmpty);
+      expect(await provider.restoreArchivedPlan(entry.id), isNull);
+      provider.dispose();
     });
   });
 

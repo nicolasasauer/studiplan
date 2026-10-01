@@ -33,12 +33,20 @@ const getSeasonForSemester = (
   return isOddSemester ? 'summer' : 'winter';
 };
 
+// Zufällige IDs, damit unabhängig angelegte Pläne verschiedener Geräte beim
+// späteren Zusammenführen nicht dieselben Semester-IDs tragen.
+// crypto.randomUUID gibt es nur in sicheren Kontexten (HTTPS, localhost).
+const createId = (): string =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+
 const createSemester = (
   number: number,
   startSeason: SemesterSeason,
   id?: string,
 ): Semester => ({
-  id: id ?? `${Date.now()}-${number}`,
+  id: id ?? createId(),
   number,
   season: getSeasonForSemester(number, startSeason),
   lectures: [],
@@ -70,13 +78,21 @@ const normalizeLecture = (
   return lecture;
 };
 
+// Ohne `randomIds` entstehen feste IDs (`semester-1`, …). Das ist für
+// Vorgaben und Reparaturen beim Einlesen nötig, damit dieselben Daten immer
+// dieselben IDs ergeben. Neu angelegte Pläne bekommen zufällige IDs.
 const generateInitialSemesters = (
   count: number,
   startSeason: SemesterSeason,
+  randomIds = false,
 ): Semester[] => {
   const semesterCount = clampSemesterCount(count);
   return Array.from({ length: semesterCount }, (_, index) =>
-    createSemester(index + 1, startSeason, `semester-${index + 1}`),
+    createSemester(
+      index + 1,
+      startSeason,
+      randomIds ? undefined : `semester-${index + 1}`,
+    ),
   );
 };
 
@@ -656,7 +672,11 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
         regularSemesters: normalizedSemesters,
         startSeason,
         isConfigured: true,
-        semesters: generateInitialSemesters(normalizedSemesters, startSeason),
+        semesters: generateInitialSemesters(
+          normalizedSemesters,
+          startSeason,
+          true,
+        ),
         parkingLot: [],
       });
       get().savePlan();

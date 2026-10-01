@@ -149,6 +149,8 @@ void main() {
       await provider.enterLocalMode();
       await provider.createUser('Dana', null);
       await provider.initializePlan('Dana Plan', 2, 'winter');
+      final firstId = provider.plan.semesters[0].id;
+      final secondId = provider.plan.semesters[1].id;
 
       final original = Lecture(
         id: 'l1',
@@ -156,23 +158,23 @@ void main() {
         ects: 5,
         season: 'winter',
         color: '#FF6B6B',
-        semesterId: 'semester-1',
+        semesterId: firstId,
       );
-      await provider.addLecture(original, 'semester-1');
+      await provider.addLecture(original, firstId);
 
       await provider.updateLecture(
         original.copyWith(
           name: 'Mathe II',
-          semesterId: 'semester-2',
+          semesterId: secondId,
           passed: true,
         ),
       );
 
       final firstSemester = provider.plan.semesters.firstWhere(
-        (semester) => semester.id == 'semester-1',
+        (semester) => semester.id == firstId,
       );
       final secondSemester = provider.plan.semesters.firstWhere(
-        (semester) => semester.id == 'semester-2',
+        (semester) => semester.id == secondId,
       );
 
       expect(firstSemester.lectures, isEmpty);

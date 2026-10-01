@@ -304,6 +304,13 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
             ),
+            if (p.hasUnsyncedChanges)
+              IconButton(
+                  icon: const Icon(Icons.cloud_off, color: Colors.amber,
+                      size: 20),
+                  tooltip: 'Änderungen noch nicht auf dem Server. '
+                      'Tippen zum erneuten Senden.',
+                  onPressed: p.refreshPlanFromServer),
             IconButton(
                 icon: const Icon(Icons.download, color: Colors.white70,
                     size: 20),

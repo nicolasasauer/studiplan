@@ -11,6 +11,7 @@ class StorageService {
   static const _kLocalMode = 'sp_local_mode';
   static const _kLocalUsers = 'sp_local_users';
   static const _kLocalPendingPlan = 'sp_local_pending_plan';
+  static const _kUnsynced = 'sp_unsynced';
 
   String _planKey({String? username, required bool local}) {
     if (username == null || username.trim().isEmpty) return _kPlan;
@@ -48,6 +49,27 @@ class StorageService {
       return null;
     }
   }
+
+  /// Merkt sich, dass der lokale Plan von [username] Änderungen enthält, die
+  /// der Server noch nicht bestätigt hat. Überlebt einen Neustart, damit der
+  /// nächste Abruf den lokalen Plan nicht mit dem Serverstand überschreibt.
+  Future<void> saveUnsyncedChanges(String username, bool unsynced) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _unsyncedKey(username);
+    if (unsynced) {
+      await prefs.setBool(key, true);
+    } else {
+      await prefs.remove(key);
+    }
+  }
+
+  Future<bool> loadUnsyncedChanges(String username) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_unsyncedKey(username)) ?? false;
+  }
+
+  String _unsyncedKey(String username) =>
+      '${_kUnsynced}_${base64Url.encode(utf8.encode(username.trim()))}';
 
   Future<void> saveUser(String username, String token) async {
     final prefs = await SharedPreferences.getInstance();

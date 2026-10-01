@@ -26,9 +26,22 @@ class StudyPlanProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _localMode = false;
   Timer? _syncTimer;
+  final ApiService Function(String baseUrl) _apiFactory;
 
-  StudyPlanProvider({StorageService? storage})
-      : _storage = storage ?? StorageService();
+  /// Ob der lokale Plan Änderungen enthält, die der Server noch nicht
+  /// bestätigt hat. Wird pro Benutzer gespeichert und überlebt Neustarts.
+  bool _hasUnsyncedChanges = false;
+
+  /// Zählt lokale Änderungen. Damit wird erkannt, ob sich der Plan während
+  /// einer laufenden Anfrage geändert hat.
+  int _localRevision = 0;
+  Future<bool>? _pushInFlight;
+
+  StudyPlanProvider({
+    StorageService? storage,
+    ApiService Function(String baseUrl)? apiFactory,
+  })  : _storage = storage ?? StorageService(),
+        _apiFactory = apiFactory ?? ApiService.new;
 
   String get baseUrl => _baseUrl;
   StudyPlan get plan => _plan;
@@ -37,8 +50,15 @@ class StudyPlanProvider extends ChangeNotifier {
   bool get isLoggedIn => currentUser != null;
   bool get localMode => _localMode;
   bool get canUseRemote => !_localMode && _baseUrl.isNotEmpty;
+  bool get hasUnsyncedChanges => _hasUnsyncedChanges;
 
-  ApiService get _api => ApiService(_baseUrl);
+  bool get _canSyncRemote =>
+      !_localMode &&
+      _baseUrl.isNotEmpty &&
+      currentUser != null &&
+      authToken != null;
+
+  ApiService get _api => _apiFactory(_baseUrl);
 
   Future<void> initialize() async {
     try {
@@ -51,6 +71,8 @@ class StudyPlanProvider extends ChangeNotifier {
       } else if (savedUser != null) {
         currentUser = savedUser['username'];
         authToken = savedUser['token'];
+        _hasUnsyncedChanges =
+            await _storage.loadUnsyncedChanges(currentUser!);
       }
 
       if (currentUser != null) {
@@ -131,6 +153,8 @@ class StudyPlanProvider extends ChangeNotifier {
               fallbackToLegacy: true,
             ) ??
             StudyPlan();
+        _hasUnsyncedChanges =
+            await _storage.loadUnsyncedChanges(currentUser!);
         await _storage.saveUser(currentUser!, authToken!);
         await _storage.saveLocalMode(false);
         await refreshPlanFromServer();
@@ -166,6 +190,7 @@ class StudyPlanProvider extends ChangeNotifier {
         await _storage.saveUser(currentUser!, authToken!);
         await _storage.saveLocalMode(false);
         _plan = StudyPlan();
+        await _setUnsyncedChanges(false);
         _startSyncTimer();
         return null;
       }
@@ -183,6 +208,7 @@ class StudyPlanProvider extends ChangeNotifier {
     currentUser = null;
     authToken = null;
     _plan = StudyPlan();
+    _hasUnsyncedChanges = false;
     notifyListeners();
     await _storage.clearUser();
     await _storage.saveLocalMode(_localMode);
@@ -202,6 +228,7 @@ class StudyPlanProvider extends ChangeNotifier {
       final r = await _api.deleteUser(username, authToken!);
       if (r.isSuccess) {
         await _storage.clearPlan(username: username);
+        await _storage.saveUnsyncedChanges(username, false);
         await logout();
         return null;
       }
@@ -239,6 +266,7 @@ class StudyPlanProvider extends ChangeNotifier {
     currentUser = null;
     authToken = null;
     _plan = StudyPlan();
+    _hasUnsyncedChanges = false;
     notifyListeners();
     await _storage.clearUser();
     await _storage.saveLocalMode(true);
@@ -250,20 +278,38 @@ class StudyPlanProvider extends ChangeNotifier {
     currentUser = null;
     authToken = null;
     _plan = StudyPlan();
+    _hasUnsyncedChanges = false;
     notifyListeners();
     await _storage.clearUser();
     await _storage.saveLocalMode(false);
   }
 
+  /// Holt den Plan vom Server und ersetzt den lokalen damit.
+  ///
+  /// Ausstehende lokale Änderungen werden vorher hochgeladen. Gelingt das
+  /// nicht (z. B. offline), bleibt der lokale Plan unverändert, statt mit dem
+  /// älteren Serverstand überschrieben zu werden.
   Future<void> refreshPlanFromServer() async {
-    if (_localMode || _baseUrl.isEmpty) return;
-    if (currentUser == null || authToken == null) return;
+    if (!_canSyncRemote) return;
 
-    final r = await _api.getPlan(currentUser!, authToken!);
+    if (_hasUnsyncedChanges || _pushInFlight != null) {
+      if (!await _pushPendingPlan()) return;
+    }
+
+    final username = currentUser!;
+    final revision = _localRevision;
+    final r = await _api.getPlan(username, authToken!);
+    // Während der Anfrage lokal geändert oder Benutzer gewechselt: Die
+    // Antwort ist veraltet und darf den lokalen Plan nicht ersetzen.
+    if (currentUser != username ||
+        revision != _localRevision ||
+        _hasUnsyncedChanges) {
+      return;
+    }
     if (r.isSuccess && r.data != null) {
       try {
         _plan = StudyPlan.fromJson(r.data!);
-        await _storage.savePlan(_plan, username: currentUser);
+        await _storage.savePlan(_plan, username: username);
         notifyListeners();
       } catch (e) {
         print('Failed to parse server plan: $e');
@@ -282,21 +328,57 @@ class StudyPlanProvider extends ChangeNotifier {
   }
 
   Future<void> _save() async {
+    _localRevision++;
     await _storage.savePlan(
       _plan,
       username: currentUser,
       local: _localMode,
     );
-    if (!_localMode &&
-        _baseUrl.isNotEmpty &&
-        currentUser != null &&
-        authToken != null) {
-      final result = await _api.savePlan(currentUser!, authToken!, _plan.toJson());
-      if (!result.isSuccess) {
-        print('Remote save failed: ${result.error}');
-      }
+    if (_canSyncRemote) {
+      await _setUnsyncedChanges(true);
+      notifyListeners();
+      await _pushPendingPlan();
     }
     notifyListeners();
+  }
+
+  Future<void> _setUnsyncedChanges(bool unsynced) async {
+    _hasUnsyncedChanges = unsynced;
+    final username = currentUser;
+    if (username != null && !_localMode) {
+      await _storage.saveUnsyncedChanges(username, unsynced);
+    }
+  }
+
+  /// Lädt den lokalen Plan hoch, bis der Server den aktuellen Stand bestätigt
+  /// hat. Läuft schon ein Upload, wird auf ihn gewartet. Gibt `true` zurück,
+  /// wenn danach nichts mehr aussteht.
+  Future<bool> _pushPendingPlan() =>
+      _pushInFlight ??= _runPush().whenComplete(() => _pushInFlight = null);
+
+  Future<bool> _runPush() async {
+    while (_canSyncRemote) {
+      final username = currentUser!;
+      final revision = _localRevision;
+      final result =
+          await _api.savePlan(username, authToken!, _plan.toJson());
+      if (currentUser != username) return false;
+      if (!result.isSuccess) {
+        print('Remote save failed, will retry: ${result.error}');
+        return false;
+      }
+      // Während des Uploads lokal geändert: neuen Stand hochladen.
+      if (revision != _localRevision) continue;
+      await _setUnsyncedChanges(false);
+      // Änderung während des Speicherns der Markierung: wieder ausstehend.
+      if (revision != _localRevision) {
+        await _setUnsyncedChanges(true);
+        continue;
+      }
+      notifyListeners();
+      return true;
+    }
+    return false;
   }
 
   Future<void> initializePlan(
@@ -307,7 +389,9 @@ class StudyPlanProvider extends ChangeNotifier {
     final semesters = <Semester>[];
     String season = startSeason;
     for (int i = 1; i <= regularSemesters; i++) {
-      semesters.add(Semester(id: 'semester-$i', number: i, season: season));
+      // Zufällige IDs, damit unabhängig angelegte Pläne verschiedener Geräte
+      // beim späteren Zusammenführen nicht dieselben Semester-IDs tragen.
+      semesters.add(Semester(id: _uuid.v4(), number: i, season: season));
       season = season == 'winter' ? 'summer' : 'winter';
     }
 

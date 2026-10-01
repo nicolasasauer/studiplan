@@ -64,8 +64,10 @@ jobs:
         working-directory: flutter_app
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-keystore.jks
+          # Ohne eigenes KEY_PASSWORD gilt das Keystore-Passwort, wie in
+          # release_google_play.yml.
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=../app/release-keystore.jks\n' \
-            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+            "$KEYSTORE_PASSWORD" "${KEY_PASSWORD:-$KEYSTORE_PASSWORD}" "$KEY_ALIAS" > android/key.properties
 
       # Build release APK only when signing secrets are present
       - name: Build release APK

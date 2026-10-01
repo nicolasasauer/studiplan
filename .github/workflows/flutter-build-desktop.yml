@@ -57,7 +57,9 @@ jobs:
           retention-days: 30
 
   windows:
-    runs-on: windows-latest
+    # Flutter 3.22 erkennt nur Visual Studio bis 2022. Auf windows-latest
+    # fällt es auf "Visual Studio 16 2019" zurück und findet nichts.
+    runs-on: windows-2022
     permissions:
       contents: read
 

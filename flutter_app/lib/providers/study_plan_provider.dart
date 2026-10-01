@@ -102,7 +102,8 @@ class StudyPlanProvider extends ChangeNotifier {
 
   Future<List<String>> getUsers() async {
     if (_localMode) {
-      final users = await _storage.loadLocalUsers();
+      // Kopie sortieren: Die gelieferte Liste kann unveränderlich sein.
+      final users = [...await _storage.loadLocalUsers()];
       users.sort(
         (a, b) => a.username.toLowerCase().compareTo(b.username.toLowerCase()),
       );

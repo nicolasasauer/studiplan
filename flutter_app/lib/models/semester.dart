@@ -14,10 +14,12 @@ class Semester {
   }) : lectures = lectures ?? [];
 
   factory Semester.fromJson(Map<String, dynamic> json) {
+    final number = json['number'] is num ? (json['number'] as num).toInt() : 0;
+    // Ersatz-ID wie in der Web-App, damit Semester ohne ID nicht alle
+    // dieselbe ID bekommen.
     final id = json['id'] is String && (json['id'] as String).isNotEmpty
         ? json['id'] as String
-        : 'semester-0';
-    final number = json['number'] is num ? (json['number'] as num).toInt() : 0;
+        : 'semester-$number';
     final season = json['season'] is String &&
             (json['season'] == 'winter' || json['season'] == 'summer')
         ? json['season'] as String

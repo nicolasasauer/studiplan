@@ -17,9 +17,13 @@ export const PlanSetupModal: React.FC<PlanSetupModalProps> = ({ isOpen, onSubmit
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedRegularSemesters = Number.isFinite(regularSemesters)
+      ? Math.max(1, Math.min(20, Math.floor(regularSemesters)))
+      : 6;
+
     onSubmit({
       planName: planName.trim() || 'Mein Studienplan',
-      regularSemesters: Math.max(1, Math.min(20, Math.floor(regularSemesters))),
+      regularSemesters: normalizedRegularSemesters,
       startSeason,
     });
   };
@@ -55,7 +59,10 @@ export const PlanSetupModal: React.FC<PlanSetupModalProps> = ({ isOpen, onSubmit
                 min={1}
                 max={20}
                 value={regularSemesters}
-                onChange={(e) => setRegularSemesters(Number(e.target.value))}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  setRegularSemesters(Number.isFinite(value) ? value : 1);
+                }}
                 required
               />
             </div>

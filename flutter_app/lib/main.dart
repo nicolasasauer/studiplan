@@ -74,8 +74,15 @@ class _AppRouter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<StudyPlanProvider>(
-      builder: (_, provider, __) =>
-          provider.isLoggedIn ? const MainScreen() : const LoginScreen(),
+      builder: (_, provider, __) {
+        if (!provider.isInitialized) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        return provider.isLoggedIn ? const MainScreen() : const LoginScreen();
+      },
     );
   }
 }

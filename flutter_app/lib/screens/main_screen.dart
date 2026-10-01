@@ -10,6 +10,7 @@ import '../providers/study_plan_provider.dart';
 import '../widgets/add_lecture_dialog.dart';
 import '../widgets/parking_lot_section.dart';
 import '../widgets/plan_setup_dialog.dart';
+import '../widgets/plan_settings_dialog.dart';
 import '../widgets/semester_section.dart';
 
 class MainScreen extends StatefulWidget {
@@ -23,6 +24,8 @@ class _MainScreenState extends State<MainScreen> {
   final _nameCtrl = TextEditingController();
   bool _editingName = false;
   bool _bannerDismissed = false;
+  bool _setupDialogScheduled = false;
+  bool _setupDialogOpen = false;
 
   @override
   void dispose() {
@@ -33,6 +36,24 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _export(StudyPlanProvider p) async {
     try {
       final json = p.exportJson();
+      // Auf dem Desktop gibt es kein Teilen-Menü für Dateien (Linux), dort
+      // wird direkt gespeichert.
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final path = await FilePicker.platform.saveFile(
+          dialogTitle: 'Plan exportieren',
+          fileName: 'studi_plan_export.json',
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+        );
+        if (path == null) return;
+        await File(path).writeAsString(json);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Plan gespeichert: $path')),
+          );
+        }
+        return;
+      }
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/studi_plan_export.json');
       await file.writeAsString(json);
@@ -73,6 +94,40 @@ class _MainScreenState extends State<MainScreen> {
     ));
   }
 
+  void _deleteAccount(StudyPlanProvider p) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Konto löschen?'),
+        content: Text(
+          'Soll das Konto "${p.currentUser}" unwiderruflich gelöscht werden? '
+          'Alle Daten gehen dabei verloren.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700),
+            onPressed: () async {
+              Navigator.pop(context);
+              final err = await p.deleteAccount();
+              if (err != null && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Fehler: $err'),
+                  backgroundColor: Colors.red.shade700,
+                ));
+              }
+            },
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addLecture(StudyPlanProvider p) {
     showDialog(
       context: context,
@@ -83,17 +138,94 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _openSetup(StudyPlanProvider p, {bool barrierDismissible = true}) {
-    showDialog(
+  Future<void> _openSetup(StudyPlanProvider p,
+      {bool barrierDismissible = true}) async {
+    if (_setupDialogOpen) return;
+
+    _setupDialogOpen = true;
+    try {
+      await showDialog(
+        context: context,
+        barrierDismissible: barrierDismissible,
+        builder: (_) => PlanSetupDialog(
+          initialName: p.plan.planName,
+          initialSemesters: p.plan.regularSemesters,
+          initialSeason: p.plan.startSeason,
+          onSave: (name, n, season) async {
+            try {
+              await p.initializePlan(name, n, season);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Fehler beim Erstellen des Plans: $e'),
+                    backgroundColor: Colors.red.shade700,
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dialog-Fehler: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    } finally {
+      _setupDialogOpen = false;
+    }
+  }
+
+  Future<void> _openSettings(StudyPlanProvider p) async {
+    await showDialog(
       context: context,
-      barrierDismissible: barrierDismissible,
-      builder: (_) => PlanSetupDialog(
-        initialName: p.plan.planName,
-        initialSemesters: p.plan.regularSemesters,
-        initialSeason: p.plan.startSeason,
-        onSave: (name, n, season) => p.initializePlan(name, n, season),
+      builder: (_) => PlanSettingsDialog(
+        initialWeightAverageGradeByEcts: p.plan.weightAverageGradeByEcts,
+        onSave: p.updateGradeWeighting,
       ),
     );
+  }
+
+  void _closeSetupIfNoLongerNeeded(StudyPlanProvider p) {
+    if (!_setupDialogOpen || !p.plan.isEffectivelyConfigured) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_setupDialogOpen) return;
+      Navigator.of(context, rootNavigator: true).maybePop();
+    });
+  }
+
+  void _scheduleInitialSetupIfNeeded(StudyPlanProvider p) {
+    if (_setupDialogScheduled ||
+        _setupDialogOpen ||
+        !p.isLoggedIn ||
+        p.plan.isEffectivelyConfigured) {
+      return;
+    }
+
+    _setupDialogScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _setupDialogScheduled = false;
+        return;
+      }
+
+      final provider = context.read<StudyPlanProvider>();
+      if (!provider.isLoggedIn || provider.plan.isEffectivelyConfigured) {
+        _setupDialogScheduled = false;
+        return;
+      }
+
+      await _openSetup(provider, barrierDismissible: false);
+      if (mounted) {
+        _setupDialogScheduled = false;
+      }
+    });
   }
 
   @override
@@ -101,10 +233,8 @@ class _MainScreenState extends State<MainScreen> {
     final p = context.watch<StudyPlanProvider>();
     final plan = p.plan;
 
-    if (!plan.isConfigured) {
-      WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _openSetup(p, barrierDismissible: false));
-    }
+    _closeSetupIfNoLongerNeeded(p);
+    _scheduleInitialSetupIfNeeded(p);
 
     return Scaffold(
       body: SafeArea(
@@ -192,6 +322,13 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
             ),
+            if (p.hasUnsyncedChanges)
+              IconButton(
+                  icon: const Icon(Icons.cloud_off, color: Colors.amber,
+                      size: 20),
+                  tooltip: 'Änderungen noch nicht auf dem Server. '
+                      'Tippen zum erneuten Senden.',
+                  onPressed: p.refreshPlanFromServer),
             IconButton(
                 icon: const Icon(Icons.download, color: Colors.white70,
                     size: 20),
@@ -210,8 +347,12 @@ class _MainScreenState extends State<MainScreen> {
             IconButton(
                 icon: const Icon(Icons.settings,
                     color: Colors.white70, size: 20),
-                tooltip: 'Plan einrichten',
-                onPressed: () => _openSetup(p)),
+                tooltip: p.plan.isEffectivelyConfigured
+                    ? 'Planeinstellungen'
+                    : 'Plan einrichten',
+                onPressed: () => p.plan.isEffectivelyConfigured
+                    ? _openSettings(p)
+                    : _openSetup(p)),
             if (p.localMode)
               const Tooltip(
                 message: 'Lokaler Modus – keine Serververbindung',
@@ -221,12 +362,17 @@ class _MainScreenState extends State<MainScreen> {
                       color: Colors.amber, size: 18),
                 ),
               ),
+            if (!p.localMode)
+              IconButton(
+                icon: const Icon(Icons.person_remove,
+                    color: Colors.red, size: 20),
+                tooltip: 'Konto löschen',
+                onPressed: () => _deleteAccount(p),
+              ),
             IconButton(
                 icon: const Icon(Icons.logout,
                     color: Colors.white70, size: 20),
-                tooltip: p.localMode
-                    ? 'Lokalen Modus verlassen'
-                    : 'Abmelden',
+                tooltip: 'Abmelden',
                 onPressed: () => p.logout()),
           ],
         ),
@@ -274,7 +420,11 @@ class _MainScreenState extends State<MainScreen> {
         _chip('$passed ECTS', 'bestanden', Colors.green),
         if (avg != null) ...[
           const SizedBox(width: 8),
-          _chip('Ø ${avg.toStringAsFixed(1)}', 'Note', Colors.purple),
+          _chip(
+            'Ø ${avg.toStringAsFixed(1)}',
+            plan.weightAverageGradeByEcts ? 'Note · ECTS' : 'Note',
+            Colors.purple,
+          ),
         ],
       ],
     );

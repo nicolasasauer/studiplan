@@ -1,14 +1,24 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DropResult } from 'react-beautiful-dnd';
 import { DragDropContext } from 'react-beautiful-dnd';
-import { Plus, BookOpen, Download, Upload, CheckCircle2, ChevronsUpDown, LogOut, User } from 'lucide-react';
+import {
+  BookOpen,
+  CheckCircle2,
+  ChevronsUpDown,
+  Download,
+  LogOut,
+  Plus,
+  Trash2,
+  Upload,
+  User,
+} from 'lucide-react';
 import type { SemesterSeason } from './types';
 import { useStudyPlanStore } from './store';
 import {
   AddLectureModal,
+  ParkingLot,
   PlanSetupModal,
   SemesterSection,
-  ParkingLot,
   UserSelection,
 } from './components';
 
@@ -17,28 +27,53 @@ function App() {
   const [editingLectureId, setEditingLectureId] = useState<string | null>(null);
   const [planNameInput, setPlanNameInput] = useState('');
   const [allCollapsed, setAllCollapsed] = useState<boolean | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const currentUser = useStudyPlanStore(state => state.currentUser);
-  const authToken = useStudyPlanStore(state => state.authToken);
-  const setCurrentUser = useStudyPlanStore(state => state.setCurrentUser);
-  const setAuthToken = useStudyPlanStore(state => state.setAuthToken);
-  const loadPlanForUser = useStudyPlanStore(state => state.loadPlanForUser);
-  const refreshPlanFromServer = useStudyPlanStore(state => state.refreshPlanFromServer);
-  const planName = useStudyPlanStore(state => state.planName);
-  const regularSemesters = useStudyPlanStore(state => state.regularSemesters);
-  const startSeason = useStudyPlanStore(state => state.startSeason);
-  const isConfigured = useStudyPlanStore(state => state.isConfigured);
-  const semesters = useStudyPlanStore(state => state.semesters);
-  const parkingLot = useStudyPlanStore(state => state.parkingLot);
-  const initializePlan = useStudyPlanStore(state => state.initializePlan);
-  const setPlanName = useStudyPlanStore(state => state.setPlanName);
-  const addSemester = useStudyPlanStore(state => state.addSemester);
-  const moveLectureToSemester = useStudyPlanStore(state => state.moveLectureToSemester);
-  const moveLectureToParkingLot = useStudyPlanStore(state => state.moveLectureToParkingLot);
-  const reorderLecturesInSemester = useStudyPlanStore(state => state.reorderLecturesInSemester);
-  const exportPlan = useStudyPlanStore(state => state.exportPlan);
-  const importPlan = useStudyPlanStore(state => state.importPlan);
+  const currentUser = useStudyPlanStore((state) => state.currentUser);
+  const authToken = useStudyPlanStore((state) => state.authToken);
+  const isPlanLoading = useStudyPlanStore((state) => state.isPlanLoading);
+  const syncStatus = useStudyPlanStore((state) => state.syncStatus);
+  const syncMessage = useStudyPlanStore((state) => state.syncMessage);
+  const setCurrentUser = useStudyPlanStore((state) => state.setCurrentUser);
+  const setAuthToken = useStudyPlanStore((state) => state.setAuthToken);
+  const loadPlanForUser = useStudyPlanStore((state) => state.loadPlanForUser);
+  const refreshPlanFromServer = useStudyPlanStore(
+    (state) => state.refreshPlanFromServer,
+  );
+  const deleteAccount = useStudyPlanStore((state) => state.deleteAccount);
+  const planName = useStudyPlanStore((state) => state.planName);
+  const regularSemesters = useStudyPlanStore(
+    (state) => state.regularSemesters,
+  );
+  const startSeason = useStudyPlanStore((state) => state.startSeason);
+  const isConfigured = useStudyPlanStore((state) => state.isConfigured);
+  const semesters = useStudyPlanStore((state) => state.semesters);
+  const parkingLot = useStudyPlanStore((state) => state.parkingLot);
+  const initializePlan = useStudyPlanStore((state) => state.initializePlan);
+  const setPlanName = useStudyPlanStore((state) => state.setPlanName);
+  const addSemester = useStudyPlanStore((state) => state.addSemester);
+  const moveLectureToSemester = useStudyPlanStore(
+    (state) => state.moveLectureToSemester,
+  );
+  const moveLectureToParkingLot = useStudyPlanStore(
+    (state) => state.moveLectureToParkingLot,
+  );
+  const reorderLecturesInSemester = useStudyPlanStore(
+    (state) => state.reorderLecturesInSemester,
+  );
+  const exportPlan = useStudyPlanStore((state) => state.exportPlan);
+  const importPlan = useStudyPlanStore((state) => state.importPlan);
+
+  const controlsDisabled = isPlanLoading || deleteLoading;
+  const syncToneClass =
+    syncStatus === 'error'
+      ? 'text-amber-300'
+      : syncStatus === 'saving'
+        ? 'text-blue-300'
+        : 'text-slate-400';
 
   useEffect(() => {
     setPlanNameInput(planName);
@@ -48,8 +83,6 @@ function App() {
 
   useEffect(() => {
     if (!currentUser || !authToken) return;
-    // loadPlanForUser already fetches fresh data on login; subsequent polls
-    // pick up any changes made on other devices within the next interval.
     const intervalId = setInterval(() => {
       void refreshPlanFromServer();
     }, POLL_INTERVAL_MS);
@@ -66,16 +99,39 @@ function App() {
     setCurrentUser(null);
   };
 
-  const allLectures = [...semesters.flatMap(s => s.lectures), ...parkingLot];
-  const totalEcts = allLectures.reduce((sum, l) => sum + l.ects, 0);
-  const passedLectures = allLectures.filter(l => l.passed);
-  const passedEcts = passedLectures.reduce((sum, l) => sum + l.ects, 0);
-  const gradedLectures = passedLectures.filter(l => l.grade !== undefined);
-  const avgGrade = gradedLectures.length > 0
-    ? gradedLectures.reduce((sum, l) => sum + (l.grade ?? 0), 0) / gradedLectures.length
-    : null;
+  const handleDeleteAccountConfirm = async () => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    const err = await deleteAccount();
+    setDeleteLoading(false);
+    if (err) {
+      setDeleteError(err);
+    } else {
+      setShowDeleteConfirm(false);
+    }
+  };
 
-  const handleSetupSubmit = (values: { planName: string; regularSemesters: number; startSeason: SemesterSeason }) => {
+  const allLectures = [...semesters.flatMap((s) => s.lectures), ...parkingLot];
+  const totalEcts = allLectures.reduce((sum, lecture) => sum + lecture.ects, 0);
+  const passedLectures = allLectures.filter((lecture) => lecture.passed);
+  const passedEcts = passedLectures.reduce(
+    (sum, lecture) => sum + lecture.ects,
+    0,
+  );
+  const gradedLectures = passedLectures.filter(
+    (lecture) => lecture.grade !== undefined,
+  );
+  const avgGrade =
+    gradedLectures.length > 0
+      ? gradedLectures.reduce((sum, lecture) => sum + (lecture.grade ?? 0), 0) /
+        gradedLectures.length
+      : null;
+
+  const handleSetupSubmit = (values: {
+    planName: string;
+    regularSemesters: number;
+    startSeason: SemesterSeason;
+  }) => {
     initializePlan(values);
   };
 
@@ -104,9 +160,11 @@ function App() {
       return;
     }
 
-    // Handle reordering within same semester
-    if (source.droppableId === destination.droppableId && source.droppableId !== 'parking-lot') {
-      const semester = semesters.find(s => s.id === source.droppableId);
+    if (
+      source.droppableId === destination.droppableId &&
+      source.droppableId !== 'parking-lot'
+    ) {
+      const semester = semesters.find((s) => s.id === source.droppableId);
       if (semester) {
         const lectures = Array.from(semester.lectures);
         const [removed] = lectures.splice(source.index, 1);
@@ -116,21 +174,19 @@ function App() {
       return;
     }
 
-    // Handle moving to parking lot
     if (destination.droppableId === 'parking-lot') {
       moveLectureToParkingLot(draggableId);
       return;
     }
 
-    // Handle moving to semester
     moveLectureToSemester(draggableId, destination.droppableId);
   };
 
   const editingLecture = editingLectureId
     ? semesters
-        .flatMap(s => s.lectures)
+        .flatMap((s) => s.lectures)
         .concat(parkingLot)
-        .find(l => l.id === editingLectureId)
+        .find((lecture) => lecture.id === editingLectureId)
     : null;
 
   const handleEditClose = () => {
@@ -138,6 +194,7 @@ function App() {
   };
 
   const handleImport = () => {
+    if (isPlanLoading) return;
     if (!currentUser) {
       alert('Bitte zuerst einen Benutzer auswählen.');
       return;
@@ -160,24 +217,22 @@ function App() {
       }
     };
     reader.readAsText(file);
-    
-    // Reset input so same file can be selected again
     event.target.value = '';
   };
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="min-h-screen">
-        <header className="sticky top-0 z-40 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700 shadow-lg">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="p-2 bg-blue-600 rounded-lg flex-shrink-0">
+        <header className="sticky top-0 z-40 border-b border-slate-700 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 shadow-lg">
+          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex-shrink-0 rounded-lg bg-blue-600 p-2">
                   <BookOpen size={28} className="text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <input
-                    className="bg-transparent text-2xl sm:text-3xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 w-full"
+                    className="w-full rounded bg-transparent px-1 text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-3xl"
                     value={planNameInput}
                     onChange={(e) => setPlanNameInput(e.target.value)}
                     onBlur={handlePlanNameCommit}
@@ -190,12 +245,15 @@ function App() {
                     }}
                     maxLength={200}
                     aria-label="Planname"
+                    disabled={isPlanLoading}
                   />
                   <p className="text-sm text-gray-400">
-                    Regelstudienzeit: {regularSemesters} Semester · Start: {startSeason === 'winter' ? 'WS' : 'SS'}
+                    Regelstudienzeit: {regularSemesters} Semester · Start:{' '}
+                    {startSeason === 'winter' ? 'WS' : 'SS'}
                   </p>
                 </div>
               </div>
+
               <div className="flex flex-wrap gap-2 sm:gap-3">
                 {currentUser && (
                   <div className="flex items-center gap-2">
@@ -204,21 +262,37 @@ function App() {
                       <span className="hidden sm:inline">{currentUser}</span>
                     </span>
                     <button
+                      onClick={() => {
+                        setShowDeleteConfirm(true);
+                        setDeleteError(null);
+                      }}
+                      className="btn-secondary flex items-center gap-2 border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300"
+                      title="Konto löschen"
+                      aria-label="Konto löschen"
+                      disabled={controlsDisabled}
+                    >
+                      <Trash2 size={18} aria-hidden="true" />
+                      <span className="hidden sm:inline">Konto löschen</span>
+                    </button>
+                    <button
                       onClick={handleLogout}
                       className="btn-secondary flex items-center gap-2"
                       title="Abmelden"
                       aria-label="Abmelden"
+                      disabled={controlsDisabled}
                     >
                       <LogOut size={18} aria-hidden="true" />
                       <span className="hidden sm:inline">Abmelden</span>
                     </button>
                   </div>
                 )}
+
                 <button
                   onClick={exportPlan}
                   className="btn-secondary flex items-center gap-2"
                   title="Plan exportieren"
                   aria-label="Plan exportieren"
+                  disabled={controlsDisabled}
                 >
                   <Upload size={20} aria-hidden="true" />
                   <span className="hidden sm:inline">Export</span>
@@ -228,6 +302,7 @@ function App() {
                   className="btn-secondary flex items-center gap-2"
                   title="Plan importieren"
                   aria-label="Plan importieren"
+                  disabled={controlsDisabled}
                 >
                   <Download size={20} aria-hidden="true" />
                   <span className="hidden sm:inline">Import</span>
@@ -237,6 +312,7 @@ function App() {
                   className="btn-primary flex items-center gap-2 shadow-lg hover:shadow-xl"
                   title="Veranstaltung hinzufügen"
                   aria-label="Veranstaltung hinzufügen"
+                  disabled={controlsDisabled}
                 >
                   <Plus size={20} aria-hidden="true" />
                   <span className="hidden sm:inline">Veranstaltung</span>
@@ -246,27 +322,40 @@ function App() {
                   className="btn-secondary flex items-center gap-2"
                   title="Semester hinzufügen"
                   aria-label="Semester hinzufügen"
+                  disabled={controlsDisabled}
                 >
                   <Plus size={20} aria-hidden="true" />
                   <span className="hidden sm:inline">Semester</span>
                 </button>
               </div>
             </div>
+
+            {currentUser && syncMessage && (
+              <div className={`mt-3 text-xs ${syncToneClass}`}>{syncMessage}</div>
+            )}
+
             {totalEcts > 0 && (
-              <div className="mt-3 pt-3 border-t border-slate-700 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+              <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-slate-700 pt-3 text-sm">
                 <span className="text-gray-400">
-                  <span className="text-white font-semibold">{totalEcts}</span> ECTS geplant
+                  <span className="font-semibold text-white">{totalEcts}</span>{' '}
+                  ECTS geplant
                 </span>
                 {passedEcts > 0 && (
                   <span className="flex items-center gap-1 text-green-400">
                     <CheckCircle2 size={14} />
-                    <span className="font-semibold">{passedEcts}</span> ECTS bestanden
-                    <span className="text-gray-500">({passedLectures.length}/{allLectures.length} Klausuren)</span>
+                    <span className="font-semibold">{passedEcts}</span> ECTS
+                    bestanden
+                    <span className="text-gray-500">
+                      ({passedLectures.length}/{allLectures.length} Klausuren)
+                    </span>
                   </span>
                 )}
                 {avgGrade !== null && (
                   <span className="text-gray-400">
-                    Ø Note: <span className="text-blue-400 font-semibold">{avgGrade.toFixed(1).replace('.', ',')}</span>
+                    Ø Note:{' '}
+                    <span className="font-semibold text-blue-400">
+                      {avgGrade.toFixed(1).replace('.', ',')}
+                    </span>
                   </span>
                 )}
               </div>
@@ -274,42 +363,46 @@ function App() {
           </div>
         </header>
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
           <div className="mb-6 rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-100">
-            WS/SS bei Veranstaltungen ist ein Hinweis zum Turnus. Klausuren koennen weiterhin in jedem Semester geplant werden.
+            WS/SS bei Veranstaltungen ist ein Hinweis zum Turnus. Klausuren
+            koennen weiterhin in jedem Semester geplant werden.
           </div>
+
           {semesters.length === 0 ? (
-            <div className="card text-center py-12">
-              <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-400 mb-4">Noch keine Semester vorhanden</p>
+            <div className="card py-12 text-center">
+              <BookOpen size={48} className="mx-auto mb-4 text-gray-400" />
+              <p className="mb-4 text-gray-400">Noch keine Semester vorhanden</p>
               <button
                 onClick={addSemester}
                 className="btn-primary inline-flex items-center gap-2"
+                disabled={controlsDisabled}
               >
                 <Plus size={20} />
                 Erstes Semester erstellen
               </button>
             </div>
           ) : (
-            <div className="flex flex-col lg:flex-row gap-6">
+            <div className="flex flex-col gap-6 lg:flex-row">
               {parkingLot.length > 0 && (
                 <div className="w-full lg:w-80 lg:flex-shrink-0">
                   <ParkingLot onEdit={setEditingLectureId} />
                 </div>
               )}
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-end mb-2">
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex justify-end">
                   <button
-                    onClick={() => setAllCollapsed(c => c !== true ? true : false)}
-                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded"
+                    onClick={() => setAllCollapsed((c) => (c !== true ? true : false))}
+                    className="flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-500 transition-colors hover:text-gray-300"
                     title={allCollapsed === true ? 'Alle ausklappen' : 'Alle einklappen'}
+                    disabled={controlsDisabled}
                   >
                     <ChevronsUpDown size={13} />
                     {allCollapsed === true ? 'Alle ausklappen' : 'Alle einklappen'}
                   </button>
                 </div>
                 <div className="space-y-6">
-                  {semesters.map(semester => (
+                  {semesters.map((semester) => (
                     <SemesterSection
                       key={semester.id}
                       semester={semester}
@@ -335,13 +428,16 @@ function App() {
       />
 
       <PlanSetupModal
-        isOpen={isConfigured === false && currentUser !== null}
+        isOpen={
+          isConfigured === false &&
+          currentUser !== null &&
+          !isPlanLoading &&
+          syncStatus !== 'error'
+        }
         onSubmit={handleSetupSubmit}
       />
 
-      {currentUser === null && (
-        <UserSelection onLogin={handleLogin} />
-      )}
+      {currentUser === null && <UserSelection onLogin={handleLogin} />}
 
       <input
         ref={fileInputRef}
@@ -350,6 +446,57 @@ function App() {
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
+
+      {currentUser !== null && isPlanLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-400 border-t-transparent" />
+              <div>
+                <p className="font-semibold text-white">Plan wird geladen</p>
+                <p className="text-sm text-slate-400">
+                  Der zuletzt bestaetigte Stand wird vorbereitet.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl">
+            <h2 className="mb-2 text-lg font-bold text-white">Konto loeschen?</h2>
+            <p className="mb-4 text-sm text-slate-300">
+              Soll das Konto{' '}
+              <span className="font-semibold text-white">{currentUser}</span>{' '}
+              unwiderruflich geloescht werden? Alle Daten gehen dabei verloren.
+            </p>
+            {deleteError && (
+              <p className="mb-3 text-sm text-red-400">{deleteError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteError(null);
+                }}
+                className="btn-secondary flex-1"
+                disabled={deleteLoading}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => void handleDeleteAccountConfirm()}
+                className="flex-1 rounded-lg bg-red-700 px-4 py-2 font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? 'Loeschen…' : 'Loeschen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DragDropContext>
   );
 }

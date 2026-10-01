@@ -6,6 +6,7 @@ class StudyPlan {
   int regularSemesters;
   String startSeason; // 'winter' | 'summer'
   bool isConfigured;
+  bool weightAverageGradeByEcts;
   List<Semester> semesters;
   List<Lecture> parkingLot;
 
@@ -14,34 +15,71 @@ class StudyPlan {
     this.regularSemesters = 6,
     this.startSeason = 'winter',
     this.isConfigured = false,
+    this.weightAverageGradeByEcts = false,
     List<Semester>? semesters,
     List<Lecture>? parkingLot,
   })  : semesters = semesters ?? [],
         parkingLot = parkingLot ?? [];
 
-  factory StudyPlan.fromJson(Map<String, dynamic> json) => StudyPlan(
-        planName: json['planName'] as String? ?? 'Mein Studienplan',
-        regularSemesters: (json['regularSemesters'] as num?)?.toInt() ?? 6,
-        startSeason: json['startSeason'] as String? ?? 'winter',
-        isConfigured: json['isConfigured'] as bool? ?? false,
-        semesters: (json['semesters'] as List<dynamic>?)
-                ?.map((s) => Semester.fromJson(s as Map<String, dynamic>))
-                .toList() ??
-            [],
-        parkingLot: (json['parkingLot'] as List<dynamic>?)
-                ?.map((l) => Lecture.fromJson(l as Map<String, dynamic>))
-                .toList() ??
-            [],
-      );
+  factory StudyPlan.fromJson(Map<String, dynamic> json) {
+    final planName = json['planName'] is String &&
+            (json['planName'] as String).trim().isNotEmpty
+        ? (json['planName'] as String).trim()
+        : 'Mein Studienplan';
+    final regularSemesters = json['regularSemesters'] is num
+        ? (json['regularSemesters'] as num).toInt()
+        : 6;
+    final startSeason = json['startSeason'] is String &&
+            (json['startSeason'] == 'winter' || json['startSeason'] == 'summer')
+        ? json['startSeason'] as String
+        : 'winter';
+
+    final semesters = (json['semesters'] as List<dynamic>?)
+            ?.whereType<Map>()
+            .map((s) => Semester.fromJson(Map<String, dynamic>.from(s)))
+            .toList() ??
+        [];
+    final parkingLot = (json['parkingLot'] as List<dynamic>?)
+            ?.whereType<Map>()
+            .map((l) =>
+                Lecture.fromJson(Map<String, dynamic>.from(l)).copyWith(
+                  semesterId: null,
+                ))
+            .toList() ??
+        [];
+    final inferredConfigured =
+        semesters.isNotEmpty || parkingLot.isNotEmpty;
+
+    return StudyPlan(
+      planName: planName,
+      regularSemesters: regularSemesters,
+      startSeason: startSeason,
+      isConfigured: json.containsKey('isConfigured')
+          ? json['isConfigured'] is bool
+              ? json['isConfigured'] as bool
+              : inferredConfigured
+          : inferredConfigured,
+      weightAverageGradeByEcts:
+          json['weightAverageGradeByEcts'] is bool
+              ? json['weightAverageGradeByEcts'] as bool
+              : false,
+      semesters: semesters,
+      parkingLot: parkingLot,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'planName': planName,
         'regularSemesters': regularSemesters,
         'startSeason': startSeason,
         'isConfigured': isConfigured,
+        'weightAverageGradeByEcts': weightAverageGradeByEcts,
         'semesters': semesters.map((s) => s.toJson()).toList(),
         'parkingLot': parkingLot.map((l) => l.toJson()).toList(),
       };
+
+  bool get isEffectivelyConfigured =>
+      isConfigured || semesters.isNotEmpty || parkingLot.isNotEmpty;
 
   int get totalEcts {
     final semEcts = semesters.fold(0, (s, sem) => s + sem.totalEcts);
@@ -54,13 +92,29 @@ class StudyPlan {
         parkingLot.where((l) => l.passed).fold(0, (s, l) => s + l.ects);
   }
 
-  double? get averageGrade {
+  double? get averageGrade =>
+      calculateAverageGrade(weightedByEcts: weightAverageGradeByEcts);
+
+  double? calculateAverageGrade({bool weightedByEcts = false}) {
     final graded = <Lecture>[];
     for (final sem in semesters) {
       graded.addAll(sem.lectures.where((l) => l.passed && l.grade != null));
     }
     graded.addAll(parkingLot.where((l) => l.passed && l.grade != null));
     if (graded.isEmpty) return null;
-    return graded.fold(0.0, (s, l) => s + l.grade!) / graded.length;
+    if (!weightedByEcts) {
+      return graded.fold(0.0, (sum, lecture) => sum + lecture.grade!) /
+          graded.length;
+    }
+
+    final totalWeightedEcts =
+        graded.fold<int>(0, (sum, lecture) => sum + lecture.ects);
+    if (totalWeightedEcts == 0) return null;
+
+    final weightedTotal = graded.fold<double>(
+      0.0,
+      (sum, lecture) => sum + (lecture.grade! * lecture.ects),
+    );
+    return weightedTotal / totalWeightedEcts;
   }
 }

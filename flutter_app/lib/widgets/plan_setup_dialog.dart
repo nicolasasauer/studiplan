@@ -51,7 +51,7 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
         _semesters,
         _season,
       );
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
     } finally {
       if (mounted) setState(() => _saving = false);
     }

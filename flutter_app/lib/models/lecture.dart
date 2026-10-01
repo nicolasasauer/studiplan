@@ -1,4 +1,10 @@
+import 'package:uuid/uuid.dart';
+
+const _defaultLectureColor = '#4ECDC4';
+
 class Lecture {
+  static final _uuid = Uuid();
+
   final String id;
   String name;
   int ects;
@@ -25,20 +31,52 @@ class Lecture {
     this.oralExam = false,
   });
 
-  factory Lecture.fromJson(Map<String, dynamic> json) => Lecture(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        ects: (json['ects'] as num).toInt(),
-        examDate: json['examDate'] as String?,
-        season: json['season'] as String? ?? 'both',
-        description: json['description'] as String? ?? '',
-        color: json['color'] as String? ?? '#4ECDC4',
-        semesterId: json['semesterId'] as String?,
-        passed: json['passed'] as bool? ?? false,
-        grade:
-            json['grade'] != null ? (json['grade'] as num).toDouble() : null,
-        oralExam: json['oralExam'] as bool? ?? false,
-      );
+  factory Lecture.fromJson(Map<String, dynamic> json) {
+    final id = json['id'] is String && (json['id'] as String).isNotEmpty
+        ? json['id'] as String
+        : _uuid.v4();
+    final name = json['name'] is String && (json['name'] as String).trim().isNotEmpty
+        ? (json['name'] as String).trim()
+        : 'Unbenannte Veranstaltung';
+    final ects = json['ects'] is num ? (json['ects'] as num).toInt() : 0;
+    final examDate = json['examDate'] is String && (json['examDate'] as String).isNotEmpty
+        ? json['examDate'] as String
+        : null;
+    final season = json['season'] is String &&
+            (json['season'] == 'winter' ||
+                json['season'] == 'summer' ||
+                json['season'] == 'both')
+        ? json['season'] as String
+        : 'both';
+    final description = json['description'] is String
+        ? json['description'] as String
+        : '';
+    final color = json['color'] is String && (json['color'] as String).isNotEmpty
+        ? json['color'] as String
+        : _defaultLectureColor;
+    final semesterId = json.containsKey('semesterId') &&
+            json['semesterId'] is String &&
+            (json['semesterId'] as String).isNotEmpty
+        ? json['semesterId'] as String
+        : null;
+    final passed = json['passed'] is bool ? json['passed'] as bool : false;
+    final grade = json['grade'] is num ? (json['grade'] as num).toDouble() : null;
+    final oralExam = json['oralExam'] is bool ? json['oralExam'] as bool : false;
+
+    return Lecture(
+      id: id,
+      name: name,
+      ects: ects,
+      examDate: examDate,
+      season: season,
+      description: description,
+      color: color,
+      semesterId: semesterId,
+      passed: passed,
+      grade: grade,
+      oralExam: oralExam,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,

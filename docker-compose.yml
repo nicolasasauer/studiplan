@@ -1,7 +1,7 @@
 services:
   studiumsplaner:
-    image: ghcr.io/nicolasasauer/studiumsplaner:latest
-    container_name: studiumsplaner
+    image: ghcr.io/nicolasasauer/studiplan:latest
+    container_name: studiplan
     ports:
       - "3000:3000"
     
@@ -9,7 +9,7 @@ services:
       NODE_ENV: production
     
     volumes:
-      - studiumsplaner_data:/data
+      - studiplan_data:/data
     
     restart: unless-stopped
     
@@ -21,4 +21,4 @@ services:
       start_period: 40s
 
 volumes:
-  studiumsplaner_data:
+  studiplan_data:

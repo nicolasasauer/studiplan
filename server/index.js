@@ -4,17 +4,16 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_PASSWORD_LENGTH = 128;
 
-// In-memory session store: token → { username, expiresAt }
 const sessions = new Map();
 
 function createSession(username) {
@@ -33,7 +32,6 @@ function getSessionUsername(token) {
   return session.username;
 }
 
-// Clean up expired sessions every hour to prevent memory leaks
 setInterval(() => {
   const now = Date.now();
   for (const [token, session] of sessions.entries()) {
@@ -43,32 +41,34 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000).unref();
 
-// Authenticate request: verify Bearer token belongs to the given username.
-// Returns true on success; sends a 401 response and returns false on failure.
 function requireAuth(req, res, requiredUsername) {
-  const authHeader = req.headers['authorization'] ?? '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const authHeader = req.headers.authorization ?? '';
+  const token = authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : null;
+
   if (!token) {
     res.status(401).json({ error: 'Nicht authentifiziert' });
     return false;
   }
+
   const sessionUsername = getSessionUsername(token);
   if (!sessionUsername || sessionUsername !== requiredUsername) {
     res.status(401).json({ error: 'Nicht authentifiziert' });
     return false;
   }
+
   return true;
 }
+
 const DB_PATH = process.env.DB_PATH || '/data/studiumsplaner.db';
 const DIST_DIR = join(__dirname, '..', 'dist');
 
-// Ensure data directory exists
 const dbDir = dirname(DB_PATH);
 if (!existsSync(dbDir)) {
   mkdirSync(dbDir, { recursive: true });
 }
 
-// Initialize database
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -86,11 +86,19 @@ db.exec(`
   );
 `);
 
-// Prepared statements
-const stmtGetAllUsers = db.prepare('SELECT username FROM users ORDER BY username');
-const stmtGetUserByName = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?');
-const stmtCreateUser = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)');
-const stmtGetPlan = db.prepare('SELECT plan_data FROM plans WHERE user_id = ?');
+const stmtGetAllUsers = db.prepare(
+  'SELECT username FROM users ORDER BY username',
+);
+const stmtGetUserByName = db.prepare(
+  'SELECT id, username, password_hash FROM users WHERE username = ?',
+);
+const stmtCreateUser = db.prepare(
+  'INSERT INTO users (username, password_hash) VALUES (?, ?)',
+);
+const stmtDeleteUser = db.prepare('DELETE FROM users WHERE username = ?');
+const stmtGetPlan = db.prepare(
+  'SELECT plan_data FROM plans WHERE user_id = ?',
+);
 const stmtUpsertPlan = db.prepare(`
   INSERT INTO plans (user_id, plan_data) VALUES (?, ?)
   ON CONFLICT(user_id) DO UPDATE SET plan_data = excluded.plan_data
@@ -106,19 +114,68 @@ const apiLimiter = rateLimit({
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(DIST_DIR));
 
-// Validate that a value looks like a StudyPlan
 function isValidStudyPlan(data) {
   if (!data || typeof data !== 'object') return false;
-  if (typeof data.planName !== 'string' || data.planName.length > 200) return false;
+  if (typeof data.planName !== 'string' || data.planName.length > 200) {
+    return false;
+  }
   if (typeof data.regularSemesters !== 'number') return false;
-  if (data.startSeason !== 'winter' && data.startSeason !== 'summer') return false;
+  if (data.startSeason !== 'winter' && data.startSeason !== 'summer') {
+    return false;
+  }
   if (typeof data.isConfigured !== 'boolean') return false;
   if (!Array.isArray(data.semesters)) return false;
   if (!Array.isArray(data.parkingLot)) return false;
   return true;
 }
 
-// Sanitize username: trim and check length/characters
+function normalizeLecture(lectureLike, semesterId) {
+  if (!lectureLike || typeof lectureLike !== 'object') {
+    return lectureLike;
+  }
+
+  const lecture = { ...lectureLike };
+  if (semesterId) {
+    lecture.semesterId = semesterId;
+  } else {
+    delete lecture.semesterId;
+  }
+
+  return lecture;
+}
+
+function normalizeStudyPlan(data) {
+  if (!isValidStudyPlan(data)) {
+    return data;
+  }
+
+  const semesters = data.semesters.map((semesterLike) => {
+    if (!semesterLike || typeof semesterLike !== 'object') {
+      return semesterLike;
+    }
+
+    const semesterId =
+      typeof semesterLike.id === 'string' ? semesterLike.id : undefined;
+
+    return {
+      ...semesterLike,
+      lectures: Array.isArray(semesterLike.lectures)
+        ? semesterLike.lectures.map((lectureLike) =>
+            normalizeLecture(lectureLike, semesterId),
+          )
+        : [],
+    };
+  });
+
+  return {
+    ...data,
+    semesters,
+    parkingLot: data.parkingLot.map((lectureLike) =>
+      normalizeLecture(lectureLike),
+    ),
+  };
+}
+
 function sanitizeUsername(username) {
   if (typeof username !== 'string') return null;
   const trimmed = username.trim();
@@ -127,21 +184,19 @@ function sanitizeUsername(username) {
   return trimmed;
 }
 
-// GET /api/users – list all usernames
 app.get('/api/users', apiLimiter, (_req, res) => {
   try {
     const rows = stmtGetAllUsers.all();
-    res.json(rows.map((r) => r.username));
+    res.json(rows.map((row) => row.username));
   } catch {
     res.status(500).json({ error: 'Fehler beim Laden der Benutzer' });
   }
 });
 
-// POST /api/users – create a new user (optional password)
 app.post('/api/users', apiLimiter, async (req, res) => {
   const username = sanitizeUsername(req.body?.username);
   if (!username) {
-    return res.status(400).json({ error: 'Ungültiger Benutzername' });
+    return res.status(400).json({ error: 'Ungueltiger Benutzername' });
   }
 
   const password = req.body?.password;
@@ -163,17 +218,18 @@ app.post('/api/users', apiLimiter, async (req, res) => {
       err.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
       (err.code === 'SQLITE_CONSTRAINT' && err.message?.includes('UNIQUE'))
     ) {
-      return res.status(409).json({ error: 'Benutzername bereits vergeben' });
+      return res
+        .status(409)
+        .json({ error: 'Benutzername bereits vergeben' });
     }
     res.status(500).json({ error: 'Fehler beim Erstellen des Benutzers' });
   }
 });
 
-// POST /api/login – validate username + password
 app.post('/api/login', apiLimiter, async (req, res) => {
   const username = sanitizeUsername(req.body?.username);
   if (!username) {
-    return res.status(400).json({ error: 'Ungültiger Benutzername' });
+    return res.status(400).json({ error: 'Ungueltiger Benutzername' });
   }
 
   const user = stmtGetUserByName.get(username);
@@ -181,7 +237,6 @@ app.post('/api/login', apiLimiter, async (req, res) => {
     return res.status(404).json({ error: 'Benutzer nicht gefunden' });
   }
 
-  // If user has no password, allow login without password
   if (user.password_hash === null) {
     const token = createSession(user.username);
     return res.json({ username: user.username, token });
@@ -189,7 +244,9 @@ app.post('/api/login', apiLimiter, async (req, res) => {
 
   const password = req.body?.password;
   if (typeof password !== 'string' || password.length === 0) {
-    return res.status(401).json({ error: 'Passwort erforderlich', requiresPassword: true });
+    return res
+      .status(401)
+      .json({ error: 'Passwort erforderlich', requiresPassword: true });
   }
 
   if (password.length > MAX_PASSWORD_LENGTH) {
@@ -205,14 +262,15 @@ app.post('/api/login', apiLimiter, async (req, res) => {
   res.json({ username: user.username, token });
 });
 
-// GET /api/plan/:username – load plan for a user
 app.get('/api/plan/:username', apiLimiter, (req, res) => {
   const username = sanitizeUsername(req.params.username);
   if (!username) {
-    return res.status(400).json({ error: 'Ungültiger Benutzername' });
+    return res.status(400).json({ error: 'Ungueltiger Benutzername' });
   }
 
-  if (!requireAuth(req, res, username)) return;
+  if (!requireAuth(req, res, username)) {
+    return;
+  }
 
   const user = stmtGetUserByName.get(username);
   if (!user) {
@@ -225,23 +283,22 @@ app.get('/api/plan/:username', apiLimiter, (req, res) => {
   }
 
   try {
-    res.json(JSON.parse(row.plan_data));
+    res.json(normalizeStudyPlan(JSON.parse(row.plan_data)));
   } catch {
     res.status(500).json({ error: 'Fehler beim Lesen des Plans' });
   }
 });
 
-// POST /api/plan/:username – save plan for a user
 app.post('/api/plan/:username', apiLimiter, (req, res) => {
   const username = sanitizeUsername(req.params.username);
   if (!username) {
-    return res.status(400).json({ error: 'Ungültiger Benutzername' });
+    return res.status(400).json({ error: 'Ungueltiger Benutzername' });
   }
 
   if (!requireAuth(req, res, username)) return;
 
   if (!isValidStudyPlan(req.body)) {
-    return res.status(400).json({ error: 'Ungültiges Plan-Format' });
+    return res.status(400).json({ error: 'Ungueltiges Plan-Format' });
   }
 
   const user = stmtGetUserByName.get(username);
@@ -250,15 +307,41 @@ app.post('/api/plan/:username', apiLimiter, (req, res) => {
   }
 
   try {
-    stmtUpsertPlan.run(user.id, JSON.stringify(req.body));
+    const normalizedPlan = normalizeStudyPlan(req.body);
+    stmtUpsertPlan.run(user.id, JSON.stringify(normalizedPlan));
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Fehler beim Speichern des Plans' });
   }
 });
 
-// Fallback route for SPA
-app.get('*', apiLimiter, (req, res) => {
+app.delete('/api/users/:username', apiLimiter, (req, res) => {
+  const username = sanitizeUsername(req.params.username);
+  if (!username) {
+    return res.status(400).json({ error: 'Ungueltiger Benutzername' });
+  }
+
+  if (!requireAuth(req, res, username)) return;
+
+  try {
+    const result = stmtDeleteUser.run(username);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    }
+
+    for (const [token, session] of sessions.entries()) {
+      if (session.username === username) {
+        sessions.delete(token);
+      }
+    }
+
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Fehler beim Loeschen des Benutzers' });
+  }
+});
+
+app.get('*', apiLimiter, (_req, res) => {
   res.sendFile(join(DIST_DIR, 'index.html'));
 });
 

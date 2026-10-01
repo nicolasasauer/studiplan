@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:studi_plan/models/lecture.dart';
 import 'package:studi_plan/models/semester.dart';
@@ -76,7 +77,39 @@ void main() {
               passed: false),
         ],
       );
-      expect(sem.averageGrade, 2.0);
+      expect(sem.averageGrade(), 2.0);
+    });
+
+    test('averageGrade can be weighted by ECTS', () {
+      final sem = Semester(
+        id: 's1',
+        number: 1,
+        season: 'winter',
+        lectures: [
+          Lecture(
+              id: 'l1',
+              name: 'A',
+              ects: 10,
+              season: 'winter',
+              color: '#FF6B6B',
+              passed: true,
+              grade: 1.0),
+          Lecture(
+              id: 'l2',
+              name: 'B',
+              ects: 5,
+              season: 'both',
+              color: '#4ECDC4',
+              passed: true,
+              grade: 3.0),
+        ],
+      );
+
+      expect(sem.averageGrade(), 2.0);
+      expect(
+        sem.averageGrade(weightedByEcts: true),
+        closeTo(1.6667, 0.0001),
+      );
     });
   });
 
@@ -87,10 +120,69 @@ void main() {
         regularSemesters: 6,
         startSeason: 'winter',
         isConfigured: true,
+        weightAverageGradeByEcts: true,
       );
       final restored = StudyPlan.fromJson(plan.toJson());
       expect(restored.planName, 'Test');
       expect(restored.regularSemesters, 6);
+      expect(restored.weightAverageGradeByEcts, isTrue);
+    });
+
+    test('fromJson handles decoded nested maps from persisted JSON', () {
+      final plan = StudyPlan(
+        planName: 'Persisted',
+        regularSemesters: 6,
+        startSeason: 'winter',
+        isConfigured: true,
+        semesters: [
+          Semester(
+            id: 's1',
+            number: 1,
+            season: 'winter',
+            lectures: [
+              Lecture(
+                id: 'l1',
+                name: 'Mathe',
+                ects: 5,
+                season: 'winter',
+                color: '#FF6B6B',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final decoded = jsonDecode(jsonEncode(plan.toJson())) as Map;
+      final restored = StudyPlan.fromJson(Map<String, dynamic>.from(decoded));
+
+      expect(restored.isConfigured, isTrue);
+      expect(restored.semesters, hasLength(1));
+      expect(restored.semesters.first.lectures, hasLength(1));
+      expect(restored.semesters.first.lectures.first.name, 'Mathe');
+      expect(restored.semesters.first.lectures.first.semesterId, 's1');
+    });
+
+    test('fromJson infers configured for older persisted plans without flag', () {
+      final decoded = {
+        'planName': 'Altbestand',
+        'regularSemesters': 6,
+        'startSeason': 'winter',
+        'semesters': [
+          {
+            'id': 'semester-1',
+            'number': 1,
+            'season': 'winter',
+            'lectures': [],
+          },
+        ],
+        'parkingLot': [],
+      };
+
+      final restored = StudyPlan.fromJson(decoded);
+
+      expect(restored.isConfigured, isTrue);
+      expect(restored.isEffectivelyConfigured, isTrue);
+      expect(restored.weightAverageGradeByEcts, isFalse);
     });
 
     test('passedEcts counts across semesters and parking lot', () {
@@ -129,6 +221,82 @@ void main() {
       );
       expect(plan.passedEcts, 9); // 4 (parking) + 5 (semester)
       expect(plan.totalEcts, 12);
+    });
+
+    test('fromJson normalizes lecture locations for semester and parking lot', () {
+      final restored = StudyPlan.fromJson({
+        'planName': 'Altbestand',
+        'regularSemesters': 6,
+        'startSeason': 'winter',
+        'isConfigured': true,
+        'semesters': [
+          {
+            'id': 'semester-1',
+            'number': 1,
+            'season': 'winter',
+            'lectures': [
+              {
+                'id': 'l1',
+                'name': 'Mathe',
+                'ects': 5,
+                'season': 'winter',
+                'color': '#FF6B6B',
+              },
+            ],
+          },
+        ],
+        'parkingLot': [
+          {
+            'id': 'p1',
+            'name': 'Seminar',
+            'ects': 3,
+            'season': 'both',
+            'color': '#4ECDC4',
+            'semesterId': 'legacy-semester',
+          },
+        ],
+      });
+
+      expect(restored.semesters.first.lectures.first.semesterId, 'semester-1');
+      expect(restored.parkingLot.first.semesterId, isNull);
+    });
+
+    test('averageGrade respects ECTS weighting setting', () {
+      final plan = StudyPlan(
+        weightAverageGradeByEcts: true,
+        semesters: [
+          Semester(
+            id: 's1',
+            number: 1,
+            season: 'winter',
+            lectures: [
+              Lecture(
+                id: 'l1',
+                name: 'Mathe',
+                ects: 10,
+                season: 'winter',
+                color: '#FF6B6B',
+                passed: true,
+                grade: 1.0,
+              ),
+            ],
+          ),
+        ],
+        parkingLot: [
+          Lecture(
+            id: 'p1',
+            name: 'Seminar',
+            ects: 5,
+            season: 'both',
+            color: '#4ECDC4',
+            passed: true,
+            grade: 3.0,
+          ),
+        ],
+      );
+
+      expect(plan.averageGrade, closeTo(1.6667, 0.0001));
+      expect(plan.calculateAverageGrade(weightedByEcts: false), 2.0);
     });
   });
 }

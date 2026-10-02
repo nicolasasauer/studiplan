@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/archived_local_plan.dart';
 import '../models/local_user_account.dart';
 import '../models/study_plan.dart';
 
@@ -12,6 +13,7 @@ class StorageService {
   static const _kLocalUsers = 'sp_local_users';
   static const _kLocalPendingPlan = 'sp_local_pending_plan';
   static const _kUnsynced = 'sp_unsynced';
+  static const _kLocalArchive = 'sp_local_archive';
 
   String _planKey({String? username, required bool local}) {
     if (username == null || username.trim().isEmpty) return _kPlan;
@@ -70,6 +72,31 @@ class StorageService {
 
   String _unsyncedKey(String username) =>
       '${_kUnsynced}_${base64Url.encode(utf8.encode(username.trim()))}';
+
+  Future<void> saveLocalArchive(List<ArchivedLocalPlan> entries) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kLocalArchive,
+      jsonEncode(entries.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  Future<List<ArchivedLocalPlan>> loadLocalArchive() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kLocalArchive);
+    if (raw == null) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return [
+        for (final entry in decoded)
+          if (entry is Map)
+            ArchivedLocalPlan.fromJson(Map<String, dynamic>.from(entry)),
+      ];
+    } catch (_) {
+      return [];
+    }
+  }
 
   Future<void> saveUser(String username, String token) async {
     final prefs = await SharedPreferences.getInstance();

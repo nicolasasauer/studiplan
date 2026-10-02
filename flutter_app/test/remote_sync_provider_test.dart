@@ -4,49 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:studi_plan/models/study_plan.dart';
 import 'package:studi_plan/providers/study_plan_provider.dart';
-import 'package:studi_plan/services/api_service.dart';
 
-/// Server im Arbeitsspeicher, der sich offline schalten lässt.
-class FakeServer {
-  Map<String, dynamic>? plan;
-  bool online = true;
-  int saveCalls = 0;
-
-  /// Wenn gesetzt, wartet der nächste Abruf, bis der Completer fertig ist.
-  Completer<void>? getGate;
-}
-
-class FakeApi extends ApiService {
-  FakeApi(this.server) : super('http://server.test');
-
-  final FakeServer server;
-
-  @override
-  Future<ApiResult<Map<String, dynamic>>> getPlan(
-    String username,
-    String token,
-  ) async {
-    final gate = server.getGate;
-    server.getGate = null;
-    final snapshot = server.plan;
-    if (gate != null) await gate.future;
-    if (!server.online) return const ApiResult(error: 'offline');
-    if (snapshot == null) return const ApiResult(error: 'HTTP 404');
-    return ApiResult(data: snapshot);
-  }
-
-  @override
-  Future<ApiResult<void>> savePlan(
-    String username,
-    String token,
-    Map<String, dynamic> plan,
-  ) async {
-    server.saveCalls++;
-    if (!server.online) return const ApiResult(error: 'offline');
-    server.plan = plan;
-    return const ApiResult(data: null);
-  }
-}
+import 'support/fake_api.dart';
 
 Map<String, Object> _remoteSession() => {
       'sp_base_url': 'http://server.test',

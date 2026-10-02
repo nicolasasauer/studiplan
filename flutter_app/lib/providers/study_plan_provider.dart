@@ -4,12 +4,36 @@ import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import '../models/archived_local_plan.dart';
 import '../models/lecture.dart';
 import '../models/local_user_account.dart';
 import '../models/semester.dart';
 import '../models/study_plan.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+
+/// Wie mit einem vorhandenen Plan auf dem Server umgegangen wird, wenn ein
+/// lokaler Plan zur Synchronisierung freigegeben wird.
+enum ServerPlanResolution {
+  /// Nachfragen: Hat das Serverkonto schon einen Plan, wird nichts geändert
+  /// und [ShareLocalPlanStatus.serverHasPlan] zurückgegeben.
+  ask,
+
+  /// Den lokalen Plan hochladen und den Serverplan ersetzen.
+  uploadLocal,
+
+  /// Den Serverplan übernehmen.
+  keepServer,
+}
+
+enum ShareLocalPlanStatus { shared, serverHasPlan, requiresPassword, failed }
+
+class ShareLocalPlanResult {
+  const ShareLocalPlanResult(this.status, [this.error]);
+
+  final ShareLocalPlanStatus status;
+  final String? error;
+}
 
 class StudyPlanProvider extends ChangeNotifier {
   static const _legacyGeneratedLocalUsername = 'lokal';
@@ -259,6 +283,171 @@ class StudyPlanProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Gibt den Plan des angemeldeten lokalen Benutzers zur Synchronisierung
+  /// frei: meldet sich am Server an (oder legt ein Konto an), lädt den Plan
+  /// hoch und wechselt in den Servermodus.
+  ///
+  /// Der lokale Benutzer wird danach archiviert (siehe [loadLocalArchive])
+  /// und lässt sich im lokalen Modus wiederherstellen. Bis zur Umstellung
+  /// (Anmeldung und Prüfung des Serverplans erfolgreich) ändert sich am
+  /// Zustand der App nichts.
+  Future<ShareLocalPlanResult> shareLocalPlan({
+    required String serverUrl,
+    required String username,
+    String? password,
+    required bool createAccount,
+    ServerPlanResolution resolution = ServerPlanResolution.ask,
+  }) async {
+    if (!_localMode || currentUser == null) {
+      return const ShareLocalPlanResult(
+          ShareLocalPlanStatus.failed, 'Kein lokaler Plan geöffnet');
+    }
+    final url = serverUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    if (url.isEmpty) {
+      return const ShareLocalPlanResult(
+          ShareLocalPlanStatus.failed, 'Server-URL fehlt');
+    }
+
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final api = _apiFactory(url);
+      final auth = createAccount
+          ? await api.createUser(username.trim(), password)
+          : await api.login(username.trim(), password);
+      if (auth.requiresPassword) {
+        return const ShareLocalPlanResult(
+            ShareLocalPlanStatus.requiresPassword, 'Passwort erforderlich');
+      }
+      if (!auth.isSuccess || auth.data == null) {
+        final error = auth.error == 'HTTP 404'
+            ? 'Benutzer auf dem Server nicht gefunden'
+            : auth.error ?? 'Anmeldung fehlgeschlagen';
+        return ShareLocalPlanResult(ShareLocalPlanStatus.failed, error);
+      }
+      final remoteUser = auth.data!['username'] as String;
+      final token = auth.data!['token'] as String;
+
+      // Ein neues Konto hat noch keinen Plan. Bei einem bestehenden Konto
+      // wird ein vorhandener Plan nie ohne Rückfrage ersetzt.
+      StudyPlan? serverPlan;
+      if (!createAccount) {
+        final r = await api.getPlan(remoteUser, token);
+        if (r.isSuccess && r.data != null) {
+          serverPlan = StudyPlan.fromJson(r.data!);
+        } else if (r.error != 'HTTP 404') {
+          return ShareLocalPlanResult(ShareLocalPlanStatus.failed,
+              'Plan auf dem Server nicht lesbar: ${r.error}');
+        }
+      }
+      final serverHasPlan = serverPlan?.isEffectivelyConfigured ?? false;
+      if (serverHasPlan && resolution == ServerPlanResolution.ask) {
+        return const ShareLocalPlanResult(ShareLocalPlanStatus.serverHasPlan);
+      }
+      final useServerPlan =
+          serverHasPlan && resolution == ServerPlanResolution.keepServer;
+
+      // Ab hier: lokalen Benutzer archivieren und in den Servermodus
+      // wechseln.
+      final localPlan = StudyPlan.fromJson(_plan.toJson());
+      await _archiveLocalUser(currentUser!, localPlan, sharedAs: remoteUser);
+      _syncTimer?.cancel();
+      _baseUrl = url;
+      _localMode = false;
+      currentUser = remoteUser;
+      authToken = token;
+      await _storage.saveBaseUrl(url);
+      await _storage.saveLocalMode(false);
+      await _storage.saveUser(remoteUser, token);
+
+      if (useServerPlan) {
+        _plan = serverPlan!;
+        _localRevision++;
+        await _storage.savePlan(_plan, username: remoteUser);
+        await _setUnsyncedChanges(false);
+      } else {
+        _plan = localPlan;
+        await _save();
+      }
+      _startSyncTimer();
+      return const ShareLocalPlanResult(ShareLocalPlanStatus.shared);
+    } catch (e) {
+      return ShareLocalPlanResult(ShareLocalPlanStatus.failed, e.toString());
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Archivierte lokale Benutzer samt Plan, neueste zuerst.
+  Future<List<ArchivedLocalPlan>> loadLocalArchive() async {
+    final archive = await _storage.loadLocalArchive();
+    archive.sort((a, b) => b.archivedAt.compareTo(a.archivedAt));
+    return archive;
+  }
+
+  /// Stellt einen archivierten Plan als lokalen Benutzer wieder her. Ist der
+  /// Name vergeben, wird eine Nummer angehängt. Gibt den Namen des
+  /// wiederhergestellten Benutzers zurück oder `null`, wenn es den Eintrag
+  /// nicht gibt.
+  Future<String?> restoreArchivedPlan(String id) async {
+    final archive = await _storage.loadLocalArchive();
+    final entry = archive.firstWhereOrNull((e) => e.id == id);
+    if (entry == null) return null;
+
+    final users = await _storage.loadLocalUsers();
+    final taken = users.map((u) => u.username).toSet();
+    var name = entry.username;
+    for (var n = 2; taken.contains(name); n++) {
+      final suffix = ' $n';
+      final base = entry.username.length + suffix.length > 50
+          ? entry.username.substring(0, 50 - suffix.length)
+          : entry.username;
+      name = '$base$suffix';
+    }
+
+    // Erst Plan und Benutzer anlegen, dann aus dem Archiv entfernen.
+    await _storage.savePlan(entry.plan, username: name, local: true);
+    await _storage.saveLocalUsers([
+      ...users,
+      LocalUserAccount(username: name, passwordHash: entry.passwordHash),
+    ]..sort((a, b) =>
+        a.username.toLowerCase().compareTo(b.username.toLowerCase())));
+    await _storage.saveLocalArchive(
+        archive.where((e) => e.id != id).toList());
+    return name;
+  }
+
+  Future<void> deleteArchivedPlan(String id) async {
+    final archive = await _storage.loadLocalArchive();
+    await _storage.saveLocalArchive(
+        archive.where((e) => e.id != id).toList());
+  }
+
+  Future<void> _archiveLocalUser(
+    String username,
+    StudyPlan plan, {
+    String? sharedAs,
+  }) async {
+    final users = await _storage.loadLocalUsers();
+    final account = users.firstWhereOrNull((u) => u.username == username);
+    final archive = await _storage.loadLocalArchive();
+    archive.add(ArchivedLocalPlan(
+      id: _uuid.v4(),
+      username: username,
+      passwordHash: account?.passwordHash,
+      archivedAt: DateTime.now(),
+      sharedAs: sharedAs,
+      plan: plan,
+    ));
+    // Erst das Archiv schreiben, dann den Benutzer entfernen: So ist der
+    // Plan zu jedem Zeitpunkt mindestens einmal gespeichert.
+    await _storage.saveLocalArchive(archive);
+    await _storage.saveLocalUsers(
+        users.where((u) => u.username != username).toList());
+    await _storage.clearPlan(username: username, local: true);
   }
 
   Future<void> enterLocalMode() async {

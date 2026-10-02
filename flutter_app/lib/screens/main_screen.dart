@@ -12,6 +12,7 @@ import '../widgets/parking_lot_section.dart';
 import '../widgets/plan_setup_dialog.dart';
 import '../widgets/plan_settings_dialog.dart';
 import '../widgets/semester_section.dart';
+import '../widgets/share_local_plan_dialog.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -67,6 +68,21 @@ class _MainScreenState extends State<MainScreen> {
           SnackBar(content: Text('Export fehlgeschlagen: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _shareLocalPlan() async {
+    final shared = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const ShareLocalPlanDialog(),
+    );
+    if (shared == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Plan wird jetzt mit dem Server synchronisiert. '
+            'Die lokale Kopie liegt im Archiv.'),
+        backgroundColor: Colors.green,
+      ));
     }
   }
 
@@ -322,6 +338,12 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
             ),
+            if (p.localMode)
+              IconButton(
+                  icon: const Icon(Icons.cloud_upload,
+                      color: Colors.white70, size: 20),
+                  tooltip: 'Mit Server synchronisieren',
+                  onPressed: () => _shareLocalPlan()),
             if (p.hasUnsyncedChanges)
               IconButton(
                   icon: const Icon(Icons.cloud_off, color: Colors.amber,

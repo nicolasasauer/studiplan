@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/archived_local_plan.dart';
 import '../providers/study_plan_provider.dart';
 import '../widgets/server_settings_dialog.dart';
+import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -91,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: context.cs.error,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Löschen'),
@@ -121,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('"$name" wiederhergestellt'),
-        backgroundColor: Colors.green,
+        backgroundColor: context.tone(Colors.green),
       ));
     }
     await _fetchUsers();
@@ -143,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: context.cs.error,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Löschen'),
@@ -242,7 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red.shade700),
+      SnackBar(content: Text(msg), backgroundColor: context.cs.error),
     );
   }
 
@@ -265,11 +266,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade900.withAlpha(100),
+                          color: context.tone(Colors.blue).withAlpha(30),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.shade700),
+                          border: Border.all(color: context.tone(Colors.blue).withAlpha(120)),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
                             SizedBox(
                               height: 20,
@@ -277,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.blue,
+                                  context.tone(Colors.blue),
                                 ),
                               ),
                             ),
@@ -285,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Expanded(
                               child: Text(
                                 'Wechsel zum anderen Modus läuft …',
-                                style: TextStyle(color: Colors.blue),
+                                style: TextStyle(color: context.tone(Colors.blue)),
                               ),
                             ),
                           ],
@@ -323,23 +324,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildHeader(BuildContext context) => Container(
-        color: const Color(0xFF0F172A),
+        color: context.cs.surface,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            const Icon(Icons.school, color: Colors.blue, size: 28),
+            Icon(Icons.school, color: context.tone(Colors.blue), size: 28),
             const SizedBox(width: 10),
-            const Text(
+            Text(
               'StudiPlan',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: context.cs.onSurface,
               ),
             ),
             const Spacer(),
             IconButton(
-              icon: const Icon(Icons.settings, color: Colors.white70),
+              icon: Icon(Icons.settings, color: context.cs.onSurfaceVariant),
               tooltip: 'Server-Einstellungen',
               onPressed: () async {
                 await showDialog(
@@ -356,18 +357,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildNoBanner() => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.orange.shade900.withAlpha(100),
+          color: context.tone(Colors.orange).withAlpha(30),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.orange.shade700),
+          border: Border.all(color: context.tone(Colors.orange).withAlpha(120)),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.warning_amber, color: Colors.orange),
+            Icon(Icons.warning_amber, color: context.tone(Colors.orange)),
             SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Kein Server konfiguriert. Bitte Einstellungen öffnen oder lokal verwenden.',
-                style: TextStyle(color: Colors.orange),
+                style: TextStyle(color: context.tone(Colors.orange)),
               ),
             ),
           ],
@@ -385,8 +386,8 @@ class _LoginScreenState extends State<LoginScreen> {
               : 'Lokal verwenden (kein Server)',
         ),
         style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white70,
-          side: const BorderSide(color: Colors.white24),
+          foregroundColor: context.cs.onSurfaceVariant,
+          side: BorderSide(color: context.cs.outline),
         ),
         onPressed: provider.isLoading || _switchingMode
             ? null
@@ -411,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 provider.localMode
                     ? 'Wähle einen lokalen Benutzer oder erstelle einen neuen.'
                     : 'Wähle einen Benutzer oder erstelle einen neuen.',
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                style: TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13),
               ),
               const SizedBox(height: 16),
               if (isBusy)
@@ -425,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       : provider.baseUrl.isNotEmpty
                           ? 'Keine Benutzer vorhanden.'
                           : 'Kein Server konfiguriert.',
-                  style: const TextStyle(color: Colors.white54),
+                  style: TextStyle(color: context.cs.onSurfaceVariant),
                 )
               else
                 ListView.separated(
@@ -448,9 +449,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.delete_outline,
-                              color: Colors.red,
+                              color: context.tone(Colors.red),
                               size: 20,
                             ),
                             tooltip: 'Konto löschen',
@@ -496,16 +497,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Lokale Pläne, die zur Synchronisierung freigegeben wurden.',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+                style: TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13),
               ),
               const SizedBox(height: 8),
               for (final entry in _archive)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.inventory_2_outlined,
-                      color: Colors.white54),
+                  leading: Icon(Icons.inventory_2_outlined,
+                      color: context.cs.onSurfaceVariant),
                   title: Text(entry.username),
                   subtitle: Text(
                     [
@@ -526,8 +527,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             isBusy ? null : () => _restoreArchived(entry),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: Colors.red, size: 20),
+                        icon: Icon(Icons.delete_outline,
+                            color: context.tone(Colors.red), size: 20),
                         tooltip: 'Archivierten Plan löschen',
                         onPressed:
                             isBusy ? null : () => _deleteArchived(entry),
@@ -549,18 +550,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildFetchError(String error) => Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.red.shade900.withAlpha(80),
+          color: context.tone(Colors.red).withAlpha(30),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.shade700),
+          border: Border.all(color: context.tone(Colors.red).withAlpha(120)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 20),
+            Icon(Icons.error_outline, color: context.tone(Colors.red), size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Server nicht erreichbar: $error\nBitte URL in den Einstellungen prüfen.',
-                style: const TextStyle(color: Colors.red, fontSize: 12),
+                style: TextStyle(color: context.tone(Colors.red), fontSize: 12),
               ),
             ),
           ],

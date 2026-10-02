@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../services/theme_service.dart';
 
 class PlanSettingsDialog extends StatefulWidget {
   final bool initialWeightAverageGradeByEcts;
@@ -36,9 +39,9 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final theme = context.watch<ThemeService>();
     return Dialog(
-      backgroundColor: const Color(0xFF1E293B),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -47,22 +50,59 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Planeinstellungen',
+              'Einstellungen',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Lege fest, wie die Durchschnittsnote im Plan berechnet wird.',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
             const SizedBox(height: 20),
+            const Text(
+              'Darstellung',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Gilt nur auf diesem Gerät und sofort.',
+              style: TextStyle(color: muted, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<ThemeMode>(
+                key: const ValueKey('theme-mode'),
+                segments: const [
+                  ButtonSegment(
+                    value: ThemeMode.system,
+                    icon: Icon(Icons.brightness_auto_rounded),
+                    label: Text('System'),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.light,
+                    icon: Icon(Icons.light_mode_rounded),
+                    label: Text('Hell'),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.dark,
+                    icon: Icon(Icons.dark_mode_rounded),
+                    label: Text('Dunkel'),
+                  ),
+                ],
+                selected: {theme.mode},
+                onSelectionChanged: (selection) =>
+                    context.read<ThemeService>().setMode(selection.first),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Plan',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _weightAverageGradeByEcts,
               title: const Text('Durchschnittsnote nach ECTS gewichten'),
-              subtitle: const Text(
+              subtitle: Text(
                 'Größere Module beeinflussen die Gesamt- und Semesternote stärker.',
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(color: muted),
               ),
               onChanged: _saving
                   ? null

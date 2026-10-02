@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class PlanSetupDialog extends StatefulWidget {
   final String initialName;
@@ -60,7 +61,7 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: context.cs.surfaceContainerLow,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16)),
       insetPadding:
@@ -77,10 +78,10 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
                   style: TextStyle(
                       fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                   'Lege Planname und Regelstudienzeit fest.',
                   style:
-                      TextStyle(color: Colors.white70, fontSize: 13)),
+                      TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13)),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _nameCtrl,
@@ -96,9 +97,9 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Regelstudienzeit (Semester)',
+                      Text('Regelstudienzeit (Semester)',
                           style: TextStyle(
-                              color: Colors.white70, fontSize: 13)),
+                              color: context.cs.onSurfaceVariant, fontSize: 13)),
                       const SizedBox(height: 6),
                       Row(children: [
                         IconButton(
@@ -126,13 +127,13 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Startsemester',
+                      Text('Startsemester',
                           style: TextStyle(
-                              color: Colors.white70, fontSize: 13)),
+                              color: context.cs.onSurfaceVariant, fontSize: 13)),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
                         initialValue: _season,
-                        dropdownColor: const Color(0xFF334155),
+                        dropdownColor: context.cs.surfaceContainerHighest,
                         decoration: const InputDecoration(isDense: true),
                         items: const [
                           DropdownMenuItem(

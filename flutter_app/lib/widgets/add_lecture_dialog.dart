@@ -4,6 +4,7 @@ import '../models/lecture.dart';
 import '../models/semester.dart';
 import '../utils/exam_date_utils.dart';
 import 'lecture_card.dart' show kColors, hexColor;
+import '../theme/app_theme.dart';
 
 class AddLectureDialog extends StatefulWidget {
   final Lecture? existing;
@@ -133,7 +134,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: context.cs.surfaceContainerLow,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16)),
       insetPadding:
@@ -160,8 +161,8 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
             else
               TextButton(
                   onPressed: _save,
-                  child: const Text('Speichern',
-                      style: TextStyle(color: Colors.blue))),
+                  child: Text('Speichern',
+                      style: TextStyle(color: context.tone(Colors.blue)))),
           ],
         ),
         body: Form(
@@ -196,9 +197,9 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
-              const Text('Turnus',
+              Text('Turnus',
                   style:
-                      TextStyle(color: Colors.white70, fontSize: 13)),
+                      TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13)),
               const SizedBox(height: 6),
               _seasonSelector(),
               const SizedBox(height: 12),
@@ -242,9 +243,9 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
                 contentPadding: EdgeInsets.zero,
               ),
               if (_passed) ...[
-                const Text('Note (1.0 – 5.0)',
+                Text('Note (1.0 – 5.0)',
                     style: TextStyle(
-                        color: Colors.white70, fontSize: 13)),
+                        color: context.cs.onSurfaceVariant, fontSize: 13)),
                 const SizedBox(height: 4),
                 _gradeSlider(),
                 const SizedBox(height: 8),
@@ -266,9 +267,9 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
                 textInputAction: TextInputAction.newline,
               ),
               const SizedBox(height: 16),
-              const Text('Farbe',
+              Text('Farbe',
                   style:
-                      TextStyle(color: Colors.white70, fontSize: 13)),
+                      TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13)),
               const SizedBox(height: 8),
               _colorPicker(),
             ],
@@ -280,9 +281,9 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
 
   Widget _seasonSelector() {
     final opts = [
-      ('winter', 'WS', Colors.blue),
-      ('summer', 'SS', Colors.orange),
-      ('both', 'WS/SS', Colors.purple),
+      ('winter', 'WS', context.tone(Colors.blue)),
+      ('summer', 'SS', context.tone(Colors.orange)),
+      ('both', 'WS/SS', context.tone(Colors.purple)),
     ];
     return Row(
       children: opts.map((o) {
@@ -296,17 +297,17 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
               decoration: BoxDecoration(
                 color: sel
                     ? o.$3.withAlpha(80)
-                    : const Color(0xFF334155),
+                    : context.cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                     color: sel
                         ? o.$3
-                        : const Color(0xFF475569)),
+                        : context.cs.outlineVariant),
               ),
               child: Center(
                 child: Text(o.$2,
                     style: TextStyle(
-                        color: sel ? o.$3 : Colors.white70,
+                        color: sel ? o.$3 : context.cs.onSurfaceVariant,
                         fontWeight: sel
                             ? FontWeight.bold
                             : FontWeight.normal)),
@@ -320,7 +321,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
 
   Widget _semesterDropdown() => DropdownButtonFormField<String?>(
         initialValue: _semId,
-        dropdownColor: const Color(0xFF334155),
+        dropdownColor: context.cs.surfaceContainerHighest,
         decoration: const InputDecoration(
             labelText: 'Semester',
             prefixIcon: Icon(Icons.calendar_today)),
@@ -354,8 +355,8 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
         width: 42,
         child: Text(g.toStringAsFixed(1),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, color: Colors.purple)),
+            style: TextStyle(
+                fontWeight: FontWeight.bold, color: context.tone(Colors.purple))),
       ),
     ]);
   }
@@ -375,7 +376,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
                 color: c,
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color: sel ? Colors.white : Colors.transparent,
+                    color: sel ? context.cs.onSurface : Colors.transparent,
                     width: 2.5),
                 boxShadow: sel
                     ? [BoxShadow(color: c.withAlpha(128), blurRadius: 6)]

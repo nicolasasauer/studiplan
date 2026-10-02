@@ -81,16 +81,13 @@ class StudyPlan {
   bool get isEffectivelyConfigured =>
       isConfigured || semesters.isNotEmpty || parkingLot.isNotEmpty;
 
-  int get totalEcts {
-    final semEcts = semesters.fold(0, (s, sem) => s + sem.totalEcts);
-    return semEcts + parkingLot.fold(0, (s, l) => s + l.ects);
-  }
+  // The parking lot holds modules not planned into any semester yet, so it
+  // counts towards none of the totals: not the planned ECTS, not the passed
+  // ones and not the grade average.
 
-  int get passedEcts {
-    final semPassed = semesters.fold(0, (s, sem) => s + sem.passedEcts);
-    return semPassed +
-        parkingLot.where((l) => l.passed).fold(0, (s, l) => s + l.ects);
-  }
+  int get totalEcts => semesters.fold(0, (s, sem) => s + sem.totalEcts);
+
+  int get passedEcts => semesters.fold(0, (s, sem) => s + sem.passedEcts);
 
   double? get averageGrade =>
       calculateAverageGrade(weightedByEcts: weightAverageGradeByEcts);
@@ -100,7 +97,6 @@ class StudyPlan {
     for (final sem in semesters) {
       graded.addAll(sem.lectures.where((l) => l.passed && l.grade != null));
     }
-    graded.addAll(parkingLot.where((l) => l.passed && l.grade != null));
     if (graded.isEmpty) return null;
     if (!weightedByEcts) {
       return graded.fold(0.0, (sum, lecture) => sum + lecture.grade!) /

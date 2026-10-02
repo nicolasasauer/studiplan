@@ -6,6 +6,7 @@ import '../providers/study_plan_provider.dart';
 import '../utils/exam_date_utils.dart';
 import 'add_lecture_dialog.dart';
 import '../theme/app_theme.dart';
+import 'lecture_drag.dart';
 
 // The 20 colors from the web app
 const kColors = [
@@ -172,8 +173,10 @@ class _LectureCardState extends State<LectureCard> {
   Widget build(BuildContext context) {
     final l = widget.lecture;
     final accent = hexColor(l.color);
-    return GestureDetector(
-      onLongPress: () => _moveSheet(context),
+    // Drag onto another semester or the parking lot; the move button below
+    // still opens the list of targets.
+    return DraggableLecture(
+      lecture: l,
       child: Card(
         color: l.passed
             ? context.tone(Colors.green).withAlpha(30)
@@ -278,7 +281,8 @@ class _LectureCardState extends State<LectureCard> {
                             _iconBtn(Icons.edit, context.cs.onSurfaceVariant,
                                 () => _edit(context)),
                             _iconBtn(Icons.open_with, context.cs.onSurfaceVariant,
-                                () => _moveSheet(context)),
+                                () => _moveSheet(context),
+                                tooltip: 'Verschieben'),
                             _iconBtn(Icons.delete_outline, context.tone(Colors.red),
                                 () => _delete(context)),
                           ]),
@@ -305,8 +309,10 @@ class _LectureCardState extends State<LectureCard> {
             style: TextStyle(fontSize: 10, color: color)),
       );
 
-  Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) =>
+  Widget _iconBtn(IconData icon, Color color, VoidCallback onTap,
+          {String? tooltip}) =>
       IconButton(
+        tooltip: tooltip,
         icon: Icon(icon, color: color, size: 18),
         padding: EdgeInsets.zero,
         constraints:

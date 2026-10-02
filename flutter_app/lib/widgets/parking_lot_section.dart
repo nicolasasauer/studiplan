@@ -4,6 +4,7 @@ import '../models/semester.dart';
 import '../providers/study_plan_provider.dart';
 import 'add_lecture_dialog.dart';
 import 'lecture_card.dart';
+import 'lecture_drag.dart';
 import '../theme/app_theme.dart';
 
 class ParkingLotSection extends StatefulWidget {
@@ -37,11 +38,16 @@ class _ParkingLotSectionState extends State<ParkingLotSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return LectureDropZone(
+      id: LectureDragController.parkingLot,
+      collapsed: _collapsed,
+      onExpand: () => setState(() => _collapsed = false),
       margin: const EdgeInsets.only(bottom: 8),
+      builder: (context, highlight) => Card(
+      margin: EdgeInsets.zero,
       child: Column(children: [
         InkWell(
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          borderRadius: const BorderRadius.all(Radius.circular(20)),
           onTap: () => setState(() => _collapsed = !_collapsed),
           child: Padding(
             padding:
@@ -61,6 +67,10 @@ class _ParkingLotSectionState extends State<ParkingLotSection> {
                   style: TextStyle(
                       color: context.cs.onSurfaceVariant, fontSize: 12)),
               const Spacer(),
+              if (highlight != null) ...[
+                DropHint(highlight),
+                const SizedBox(width: 8),
+              ],
               if (widget.lectures.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -106,6 +116,7 @@ class _ParkingLotSectionState extends State<ParkingLotSection> {
                     TextStyle(color: context.cs.outline, fontSize: 12)),
           ),
       ]),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import '../models/semester.dart';
 import '../providers/study_plan_provider.dart';
 import 'add_lecture_dialog.dart';
 import 'lecture_card.dart';
+import 'lecture_drag.dart';
 import '../theme/app_theme.dart';
 
 class SemesterSection extends StatefulWidget {
@@ -69,11 +70,17 @@ class _SemesterSectionState extends State<SemesterSection> {
   Widget build(BuildContext context) {
     final avg =
         sem.averageGrade(weightedByEcts: p.plan.weightAverageGradeByEcts);
-    return Card(
+    return LectureDropZone(
+      id: sem.id,
+      season: sem.season,
+      collapsed: _collapsed,
+      onExpand: () => setState(() => _collapsed = false),
       margin: const EdgeInsets.only(bottom: 12),
+      builder: (context, highlight) => Card(
+      margin: EdgeInsets.zero,
       child: Column(children: [
         InkWell(
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          borderRadius: const BorderRadius.all(Radius.circular(20)),
           onTap: () => setState(() => _collapsed = !_collapsed),
           child: Padding(
             padding:
@@ -92,6 +99,7 @@ class _SemesterSectionState extends State<SemesterSection> {
                   style: TextStyle(
                       color: context.cs.onSurfaceVariant, fontSize: 12)),
               const Spacer(),
+              if (highlight != null) DropHint(highlight),
               const SizedBox(width: 8),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -179,6 +187,7 @@ class _SemesterSectionState extends State<SemesterSection> {
                     TextStyle(color: context.cs.outline, fontSize: 12)),
           ),
       ]),
+      ),
     );
   }
 

@@ -111,9 +111,11 @@ function App() {
     }
   };
 
-  const allLectures = [...semesters.flatMap((s) => s.lectures), ...parkingLot];
-  const totalEcts = allLectures.reduce((sum, lecture) => sum + lecture.ects, 0);
-  const passedLectures = allLectures.filter((lecture) => lecture.passed);
+  // The parking lot holds modules not planned into a semester yet; they count
+  // towards none of the totals (same rule as the Flutter app).
+  const plannedLectures = semesters.flatMap((s) => s.lectures);
+  const totalEcts = plannedLectures.reduce((sum, lecture) => sum + lecture.ects, 0);
+  const passedLectures = plannedLectures.filter((lecture) => lecture.passed);
   const passedEcts = passedLectures.reduce(
     (sum, lecture) => sum + lecture.ects,
     0,
@@ -346,7 +348,7 @@ function App() {
                     <span className="font-semibold">{passedEcts}</span> ECTS
                     bestanden
                     <span className="text-gray-500">
-                      ({passedLectures.length}/{allLectures.length} Klausuren)
+                      ({passedLectures.length}/{plannedLectures.length} Klausuren)
                     </span>
                   </span>
                 )}

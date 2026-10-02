@@ -319,7 +319,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
   }
 
   Widget _semesterDropdown() => DropdownButtonFormField<String?>(
-        value: _semId,
+        initialValue: _semId,
         dropdownColor: const Color(0xFF334155),
         decoration: const InputDecoration(
             labelText: 'Semester',

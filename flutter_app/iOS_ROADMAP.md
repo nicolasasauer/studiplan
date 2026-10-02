@@ -9,7 +9,7 @@
 
 **Ziel:** Ein lauffähiges iOS-Build auf dem Entwickler-Mac erzeugen.
 
-- [ ] Flutter SDK auf dem Mac auf `3.22.x` (stable) aktualisieren: `flutter upgrade`
+- [ ] Flutter SDK auf dem Mac auf `3.44.0` (stable) aktualisieren: `flutter upgrade`
 - [ ] Xcode (neueste stabile Version) aus dem Mac App Store installieren
 - [ ] Xcode Command Line Tools installieren: `xcode-select --install`
 - [ ] CocoaPods installieren: `sudo gem install cocoapods`
@@ -155,7 +155,7 @@
 
         - uses: subosito/flutter-action@v2
           with:
-            flutter-version: '3.22.x'
+            flutter-version: '3.44.0'
             channel: stable
 
         - name: Install dependencies

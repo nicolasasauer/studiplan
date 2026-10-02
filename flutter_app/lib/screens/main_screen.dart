@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -13,6 +14,7 @@ import '../widgets/lecture_drag.dart';
 import '../widgets/parking_lot_section.dart';
 import '../widgets/plan_setup_dialog.dart';
 import '../widgets/plan_settings_dialog.dart';
+import '../widgets/plan_transfer.dart';
 import '../widgets/semester_section.dart';
 import '../widgets/share_local_plan_dialog.dart';
 import '../theme/app_theme.dart';
@@ -97,46 +99,55 @@ class _MainScreenState extends State<MainScreen> {
       ));
   }
 
+  static bool get _isDesktop =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+  void _toast(String text, {Color? color}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text), backgroundColor: color));
+  }
+
   Future<void> _export(StudyPlanProvider p) async {
+    // Desktop (Linux) has no share menu for files.
+    final action = await showExportOptions(context, canShare: !_isDesktop);
+    if (action == null) return;
     try {
       final json = p.exportJson();
-      // Auf dem Desktop gibt es kein Teilen-Menü für Dateien (Linux), dort
-      // wird direkt gespeichert.
-      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        // Writes the file itself; returns null when cancelled.
-        final saved = await FilePicker.saveFile(
-          dialogTitle: 'Plan exportieren',
-          fileName: 'studi_plan_export.json',
-          bytes: utf8.encode(json),
-          mimeType: 'application/json',
-          type: FileType.custom,
-          allowedExtensions: ['json'],
-        );
-        if (saved == null) return;
-        final where =
-            saved.scheme == 'file' ? saved.toFilePath() : saved.toString();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Plan gespeichert: $where')),
+      switch (action) {
+        case ExportAction.copyText:
+          await Clipboard.setData(ClipboardData(text: json));
+          _toast('Plan als Text in die Zwischenablage kopiert');
+        case ExportAction.saveFile:
+          // Writes the file itself (on Android via the system's file
+          // dialog); returns null when cancelled.
+          final saved = await FilePicker.saveFile(
+            dialogTitle: 'Plan exportieren',
+            fileName: 'studi_plan_export.json',
+            bytes: utf8.encode(json),
+            mimeType: 'application/json',
+            type: FileType.custom,
+            allowedExtensions: ['json'],
           );
-        }
-        return;
+          if (saved == null) return;
+          // Android hands back a content:// URI, which means nothing to
+          // the user, so only desktop paths are shown.
+          _toast(saved.scheme == 'file'
+              ? 'Plan gespeichert: ${saved.toFilePath()}'
+              : 'Plan gespeichert');
+        case ExportAction.share:
+          final dir = await getTemporaryDirectory();
+          final file = File('${dir.path}/studi_plan_export.json');
+          await file.writeAsString(json);
+          await SharePlus.instance.share(
+            ShareParams(
+              files: [XFile(file.path, mimeType: 'application/json')],
+              subject: 'StudiPlan Export',
+            ),
+          );
       }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/studi_plan_export.json');
-      await file.writeAsString(json);
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path, mimeType: 'application/json')],
-          subject: 'StudiPlan Export',
-        ),
-      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export fehlgeschlagen: $e')),
-        );
-      }
+      _toast('Export fehlgeschlagen: $e');
     }
   }
 
@@ -156,28 +167,39 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _import(StudyPlanProvider p) async {
+    final action = await showImportOptions(context);
+    if (action == null || !mounted) return;
+    final String? content;
+    if (action == ImportAction.pasteText) {
+      content = await showDialog<String>(
+        context: context,
+        builder: (_) => const PasteImportDialog(),
+      );
+    } else {
+      content = await _readImportFile();
+    }
+    if (content == null) return;
+    final err = await p.importJson(content);
+    if (!mounted) return;
+    _toast(err ?? 'Plan erfolgreich importiert',
+        color: err == null ? context.tone(Colors.green) : context.cs.error);
+  }
+
+  Future<String?> _readImportFile() async {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
-    if (files.isEmpty) return;
-    final String content;
+    if (files.isEmpty) return null;
     try {
-      content = utf8.decode(await files.first.readAsBytes());
+      return utf8.decode(await files.first.readAsBytes());
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Datei konnte nicht gelesen werden: $e'),
-        backgroundColor: context.cs.error,
-      ));
-      return;
+      if (mounted) {
+        _toast('Datei konnte nicht gelesen werden: $e',
+            color: context.cs.error);
+      }
+      return null;
     }
-    final err = await p.importJson(content);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(err ?? 'Plan erfolgreich importiert'),
-      backgroundColor: err == null ? context.tone(Colors.green) : context.cs.error,
-    ));
   }
 
   void _deleteAccount(StudyPlanProvider p) {

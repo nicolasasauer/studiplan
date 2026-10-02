@@ -23,6 +23,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Version from commit count
+        # Play needs a higher versionCode for every upload. The commit count
+        # on main only grows, and matches the Windows Store version 1.0.N.0.
+        run: |
+          n=$(git rev-list --count HEAD)
+          echo "BUILD_NUMBER=$n" >> "$GITHUB_ENV"
+          echo "BUILD_NAME=1.0.$n" >> "$GITHUB_ENV"
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -75,7 +85,7 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         working-directory: flutter_app
-        run: flutter build apk --release
+        run: flutter build apk --release --build-number="$BUILD_NUMBER" --build-name="$BUILD_NAME"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

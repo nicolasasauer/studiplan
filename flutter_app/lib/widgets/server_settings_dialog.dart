@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/study_plan_provider.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class ServerSettingsDialog extends StatefulWidget {
   const ServerSettingsDialog({super.key});
@@ -85,7 +86,7 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: context.cs.surfaceContainerLow,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16)),
       insetPadding:
@@ -97,7 +98,7 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const Icon(Icons.dns, color: Colors.blue),
+              Icon(Icons.dns, color: context.tone(Colors.blue)),
               const SizedBox(width: 8),
               const Text('Server-Einstellungen',
                   style: TextStyle(
@@ -108,10 +109,10 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                   onPressed: () => Navigator.pop(context)),
             ]),
             const SizedBox(height: 8),
-            const Text(
+            Text(
                 'Gib die URL deines StudiPlan-Servers ein.',
                 style:
-                    TextStyle(color: Colors.white54, fontSize: 13)),
+                    TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13)),
             const SizedBox(height: 16),
             TextField(
               controller: _urlCtrl,
@@ -125,29 +126,30 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
               onChanged: (_) => setState(() => _testResult = null),
             ),
             const SizedBox(height: 6),
-            const Text('Beispiel: http://192.168.1.100:3000',
+            Text('Beispiel: http://192.168.1.100:3000',
                 style:
-                    TextStyle(color: Colors.white38, fontSize: 11)),
+                    TextStyle(color: context.cs.outline, fontSize: 11)),
             if (_testResult != null) ...[
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: (_testSuccess
-                          ? Colors.green.shade900
-                          : Colors.red.shade900)
-                      .withAlpha(80),
+                          ? context.tone(Colors.green)
+                          : context.tone(Colors.red))
+                      .withAlpha(30),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: _testSuccess
-                          ? Colors.green.shade700
-                          : Colors.red.shade700),
+                      color: (_testSuccess
+                              ? context.tone(Colors.green)
+                              : context.tone(Colors.red))
+                          .withAlpha(120)),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       _testSuccess ? Icons.check_circle : Icons.error_outline,
-                      color: _testSuccess ? Colors.green : Colors.red,
+                      color: _testSuccess ? context.tone(Colors.green) : context.tone(Colors.red),
                       size: 18,
                     ),
                     const SizedBox(width: 8),
@@ -155,7 +157,7 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                       child: Text(
                         _testResult!,
                         style: TextStyle(
-                          color: _testSuccess ? Colors.green : Colors.red,
+                          color: _testSuccess ? context.tone(Colors.green) : context.tone(Colors.red),
                           fontSize: 12,
                         ),
                       ),
@@ -177,8 +179,8 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                       : const Icon(Icons.wifi_find, size: 18),
                   label: const Text('Verbindung testen'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white24),
+                    foregroundColor: context.cs.onSurfaceVariant,
+                    side: BorderSide(color: context.cs.outline),
                   ),
                   onPressed: _testing || _saving ? null : _testConnection,
                 ),

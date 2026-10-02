@@ -5,6 +5,7 @@ import '../models/semester.dart';
 import '../providers/study_plan_provider.dart';
 import '../utils/exam_date_utils.dart';
 import 'add_lecture_dialog.dart';
+import '../theme/app_theme.dart';
 
 // The 20 colors from the web app
 const kColors = [
@@ -47,11 +48,11 @@ class _LectureCardState extends State<LectureCard> {
   Color get _seasonColor {
     switch (widget.lecture.season) {
       case 'winter':
-        return Colors.blue;
+        return context.tone(Colors.blue);
       case 'summer':
-        return Colors.orange;
+        return context.tone(Colors.orange);
       default:
-        return Colors.purple;
+        return context.tone(Colors.purple);
     }
   }
 
@@ -72,7 +73,7 @@ class _LectureCardState extends State<LectureCard> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: context.cs.surfaceContainerLow,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (_) {
@@ -94,8 +95,8 @@ class _LectureCardState extends State<LectureCard> {
                   const Divider(height: 1),
                   if (widget.lecture.semesterId != null)
                     ListTile(
-                      leading: const Icon(Icons.local_parking,
-                          color: Colors.orange),
+                      leading: Icon(Icons.local_parking,
+                          color: context.tone(Colors.orange)),
                       title: const Text('Parkplatz'),
                       onTap: () {
                         Navigator.pop(context);
@@ -108,8 +109,8 @@ class _LectureCardState extends State<LectureCard> {
                       .map((sem) => ListTile(
                             leading: Icon(Icons.calendar_today,
                                 color: sem.season == 'winter'
-                                    ? Colors.blue
-                                    : Colors.orange),
+                                    ? context.tone(Colors.blue)
+                                    : context.tone(Colors.orange)),
                             title: Text(
                                 '${sem.number}. Semester (${sem.season == 'winter' ? 'WS' : 'SS'})'),
                             subtitle: Text('${sem.lectures.length} VL'),
@@ -153,7 +154,8 @@ class _LectureCardState extends State<LectureCard> {
               child: const Text('Abbrechen')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700),
+                backgroundColor: context.cs.error,
+                foregroundColor: context.cs.onError),
             onPressed: () {
               Navigator.pop(context);
               context.read<StudyPlanProvider>().removeLecture(
@@ -174,8 +176,8 @@ class _LectureCardState extends State<LectureCard> {
       onLongPress: () => _moveSheet(context),
       child: Card(
         color: l.passed
-            ? Colors.green.shade900.withAlpha(50)
-            : const Color(0xFF1E293B),
+            ? context.tone(Colors.green).withAlpha(30)
+            : context.cs.surfaceContainerLow,
         margin: const EdgeInsets.only(bottom: 8),
         child: IntrinsicHeight(
           child: Row(
@@ -186,8 +188,8 @@ class _LectureCardState extends State<LectureCard> {
                 decoration: BoxDecoration(
                   color: accent,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    bottomLeft: Radius.circular(12),
+                    topLeft: Radius.circular(20),
+                    bottomLeft: Radius.circular(20),
                   ),
                 ),
               ),
@@ -204,31 +206,31 @@ class _LectureCardState extends State<LectureCard> {
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14)),
                         ),
-                        _badge('${l.ects} ECTS', Colors.blue),
+                        _badge('${l.ects} ECTS', context.tone(Colors.blue)),
                       ]),
                       const SizedBox(height: 6),
                       Wrap(spacing: 4, runSpacing: 4, children: [
                         _badge(_seasonLabel, _seasonColor),
                         if (l.passed)
-                          _badge('✓ Bestanden', Colors.green),
+                          _badge('✓ Bestanden', context.tone(Colors.green)),
                         if (l.passed && l.grade != null)
                           _badge('Note: ${l.grade!.toStringAsFixed(1)}',
-                              Colors.purple),
+                              context.tone(Colors.purple)),
                         if (l.oralExam)
-                          _badge('Münd.', Colors.teal),
+                          _badge('Münd.', context.tone(Colors.teal)),
                         if (_hasMismatch)
-                          _badge('⚠ Semester-Hinweis', Colors.orange),
+                          _badge('⚠ Semester-Hinweis', context.tone(Colors.orange)),
                       ]),
                       if (l.examDate != null) ...[
                         const SizedBox(height: 4),
                         Row(children: [
-                          const Icon(Icons.event,
-                              size: 12, color: Colors.white54),
+                          Icon(Icons.event,
+                              size: 12, color: context.cs.onSurfaceVariant),
                           const SizedBox(width: 4),
                           Text(
                               'Prüfung: ${ExamDateUtils.formatStoredDateForDisplay(l.examDate)}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.white54)),
+                              style: TextStyle(
+                                  fontSize: 11, color: context.cs.onSurfaceVariant)),
                         ]),
                       ],
                       if (l.description.isNotEmpty) ...[
@@ -242,21 +244,21 @@ class _LectureCardState extends State<LectureCard> {
                                   ? Icons.expand_less
                                   : Icons.expand_more,
                               size: 16,
-                              color: Colors.white54,
+                              color: context.cs.onSurfaceVariant,
                             ),
-                            const Text('Beschreibung',
+                            Text('Beschreibung',
                                 style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.white54)),
+                                    color: context.cs.onSurfaceVariant)),
                           ]),
                         ),
                         if (_showDesc)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(l.description,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.white70)),
+                                    color: context.cs.onSurfaceVariant)),
                           ),
                       ],
                       const SizedBox(height: 4),
@@ -267,17 +269,17 @@ class _LectureCardState extends State<LectureCard> {
                               l.passed
                                   ? Icons.check_circle
                                   : Icons.check_circle_outline,
-                              l.passed ? Colors.green : Colors.white38,
+                              l.passed ? context.tone(Colors.green) : context.cs.outline,
                               () => context
                                   .read<StudyPlanProvider>()
                                   .toggleLecturePassed(
                                       l.id, l.semesterId),
                             ),
-                            _iconBtn(Icons.edit, Colors.white54,
+                            _iconBtn(Icons.edit, context.cs.onSurfaceVariant,
                                 () => _edit(context)),
-                            _iconBtn(Icons.open_with, Colors.white54,
+                            _iconBtn(Icons.open_with, context.cs.onSurfaceVariant,
                                 () => _moveSheet(context)),
-                            _iconBtn(Icons.delete_outline, Colors.red,
+                            _iconBtn(Icons.delete_outline, context.tone(Colors.red),
                                 () => _delete(context)),
                           ]),
                     ],

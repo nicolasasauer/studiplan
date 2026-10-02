@@ -3,6 +3,7 @@ import '../models/semester.dart';
 import '../providers/study_plan_provider.dart';
 import 'add_lecture_dialog.dart';
 import 'lecture_card.dart';
+import '../theme/app_theme.dart';
 
 class SemesterSection extends StatefulWidget {
   final Semester semester;
@@ -22,7 +23,7 @@ class _SemesterSectionState extends State<SemesterSection> {
   StudyPlanProvider get p => widget.provider;
 
   Color get _seasonColor =>
-      sem.season == 'winter' ? Colors.blue : Colors.orange;
+      sem.season == 'winter' ? context.tone(Colors.blue) : context.tone(Colors.orange);
   String get _seasonLabel => sem.season == 'winter' ? 'WS' : 'SS';
 
   void _delete(BuildContext context) {
@@ -40,7 +41,8 @@ class _SemesterSectionState extends State<SemesterSection> {
               child: const Text('Abbrechen')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700),
+                backgroundColor: context.cs.error,
+                foregroundColor: context.cs.onError),
             onPressed: () {
               Navigator.pop(context);
               p.removeSemester(sem.id);
@@ -78,7 +80,7 @@ class _SemesterSectionState extends State<SemesterSection> {
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(children: [
               Icon(_collapsed ? Icons.expand_more : Icons.expand_less,
-                  color: Colors.white54, size: 20),
+                  color: context.cs.onSurfaceVariant, size: 20),
               const SizedBox(width: 6),
               _seasonBadge(),
               const SizedBox(width: 8),
@@ -87,17 +89,17 @@ class _SemesterSectionState extends State<SemesterSection> {
                       fontWeight: FontWeight.bold, fontSize: 15)),
               const SizedBox(width: 6),
               Text('${sem.lectures.length} VL',
-                  style: const TextStyle(
-                      color: Colors.white54, fontSize: 12)),
+                  style: TextStyle(
+                      color: context.cs.onSurfaceVariant, fontSize: 12)),
               const Spacer(),
               const SizedBox(width: 8),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _miniChip('${sem.totalEcts} ECTS', Colors.blue),
+                  _miniChip('${sem.totalEcts} ECTS', context.tone(Colors.blue)),
                   if (sem.passedEcts > 0) ...[
                     const SizedBox(width: 6),
-                    _miniChip('✓ ${sem.passedEcts}', Colors.green),
+                    _miniChip('✓ ${sem.passedEcts}', context.tone(Colors.green)),
                   ],
                   if (avg != null) ...[
                     const SizedBox(width: 6),
@@ -106,7 +108,7 @@ class _SemesterSectionState extends State<SemesterSection> {
                           ? 'ECTS-gewichtete Durchschnittsnote'
                           : 'Ungewichtete Durchschnittsnote',
                       child:
-                          _miniChip('Ø ${avg.toStringAsFixed(1)}', Colors.purple),
+                          _miniChip('Ø ${avg.toStringAsFixed(1)}', context.tone(Colors.purple)),
                     ),
                   ],
                 ],
@@ -117,8 +119,8 @@ class _SemesterSectionState extends State<SemesterSection> {
                 children: [
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.add_circle_outline,
-                        color: Colors.white54, size: 20),
+                    icon: Icon(Icons.add_circle_outline,
+                        color: context.cs.onSurfaceVariant, size: 20),
                     padding: EdgeInsets.zero,
                     constraints:
                         const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -126,8 +128,8 @@ class _SemesterSectionState extends State<SemesterSection> {
                     onPressed: () => _addLecture(context),
                   ),
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert,
-                        color: Colors.white54, size: 20),
+                    icon: Icon(Icons.more_vert,
+                        color: context.cs.onSurfaceVariant, size: 20),
                     tooltip: 'Weitere Optionen',
                     padding: EdgeInsets.zero,
                     constraints:
@@ -148,7 +150,7 @@ class _SemesterSectionState extends State<SemesterSection> {
                       PopupMenuItem(
                         value: 'delete',
                         child: Text('Semester löschen',
-                            style: TextStyle(color: Colors.red.shade400)),
+                            style: TextStyle(color: context.cs.error)),
                       ),
                     ],
                   ),
@@ -170,11 +172,11 @@ class _SemesterSectionState extends State<SemesterSection> {
             ),
           ),
         if (!_collapsed && sem.lectures.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Text('Keine Veranstaltungen in diesem Semester.',
                 style:
-                    TextStyle(color: Colors.white38, fontSize: 12)),
+                    TextStyle(color: context.cs.outline, fontSize: 12)),
           ),
       ]),
     );

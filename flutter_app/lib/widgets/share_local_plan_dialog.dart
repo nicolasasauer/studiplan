@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/study_plan_provider.dart';
+import '../theme/app_theme.dart';
 
 /// Gibt den lokalen Plan zur Synchronisierung frei: Anmeldung an einem
 /// Server (oder neues Konto), danach Upload und Wechsel in den Servermodus.
@@ -94,7 +95,8 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade700),
+                backgroundColor: context.cs.error,
+                foregroundColor: context.cs.onError),
               onPressed: () =>
                   Navigator.pop(context, ServerPlanResolution.uploadLocal),
               child: const Text('Lokalen Plan hochladen'),
@@ -106,7 +108,7 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: context.cs.surfaceContainerLow,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
       child: SingleChildScrollView(
@@ -116,7 +118,7 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const Icon(Icons.cloud_upload, color: Colors.blue),
+              Icon(Icons.cloud_upload, color: context.tone(Colors.blue)),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text('Mit Server synchronisieren',
@@ -128,11 +130,11 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
                   onPressed: _busy ? null : () => Navigator.pop(context)),
             ]),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Der Plan wird auf den Server geladen und ist danach auf allen '
               'Geräten mit diesem Konto verfügbar. Der lokale Benutzer wird '
               'archiviert und lässt sich im lokalen Modus wiederherstellen.',
-              style: TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -190,7 +192,7 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(_error!,
-                  style: const TextStyle(color: Colors.red, fontSize: 13)),
+                  style: TextStyle(color: context.tone(Colors.red), fontSize: 13)),
             ],
             const SizedBox(height: 20),
             SizedBox(

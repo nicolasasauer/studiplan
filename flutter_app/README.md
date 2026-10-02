@@ -22,7 +22,7 @@ Sie bietet dieselbe Planungsfunktionalitaet wie die Web-App, jedoch als native A
 - Automatische Synchronisierung mit dem Server alle 30 Sekunden
 - Lokale Persistenz via `SharedPreferences` (auch offline nutzbar)
 - Server-URL konfigurierbar ueber einen Einstellungsdialog
-- Dark-Mode-Design
+- Helles und dunkles Design (System/Hell/Dunkel, in den Einstellungen), Schrift Inter mitgeliefert
 
 ## Screenshots
 

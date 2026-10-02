@@ -13,6 +13,7 @@ import '../widgets/plan_setup_dialog.dart';
 import '../widgets/plan_settings_dialog.dart';
 import '../widgets/semester_section.dart';
 import '../widgets/share_local_plan_dialog.dart';
+import '../theme/app_theme.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -84,10 +85,10 @@ class _MainScreenState extends State<MainScreen> {
       builder: (_) => const ShareLocalPlanDialog(),
     );
     if (shared == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Plan wird jetzt mit dem Server synchronisiert. '
             'Die lokale Kopie liegt im Archiv.'),
-        backgroundColor: Colors.green,
+        backgroundColor: context.tone(Colors.green),
       ));
     }
   }
@@ -105,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Datei konnte nicht gelesen werden: $e'),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: context.cs.error,
       ));
       return;
     }
@@ -113,7 +114,7 @@ class _MainScreenState extends State<MainScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(err ?? 'Plan erfolgreich importiert'),
-      backgroundColor: err == null ? Colors.green : Colors.red.shade700,
+      backgroundColor: err == null ? context.tone(Colors.green) : context.cs.error,
     ));
   }
 
@@ -133,14 +134,15 @@ class _MainScreenState extends State<MainScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700),
+                backgroundColor: context.cs.error,
+                foregroundColor: context.cs.onError),
             onPressed: () async {
               Navigator.pop(context);
               final err = await p.deleteAccount();
               if (err != null && mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: Text('Fehler: $err'),
-                  backgroundColor: Colors.red.shade700,
+                  backgroundColor: context.cs.error,
                 ));
               }
             },
@@ -182,7 +184,7 @@ class _MainScreenState extends State<MainScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Fehler beim Erstellen des Plans: $e'),
-                    backgroundColor: Colors.red.shade700,
+                    backgroundColor: context.cs.error,
                   ),
                 );
               }
@@ -195,7 +197,7 @@ class _MainScreenState extends State<MainScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Dialog-Fehler: $e'),
-            backgroundColor: Colors.red.shade700,
+            backgroundColor: context.cs.error,
           ),
         );
       }
@@ -297,21 +299,21 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildHeader(StudyPlanProvider p) => Container(
-        color: const Color(0xFF0F172A),
+        color: context.cs.surface,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
-            const Icon(Icons.school, color: Colors.blue, size: 22),
+            Icon(Icons.school, color: context.tone(Colors.blue), size: 22),
             const SizedBox(width: 8),
             Expanded(
               child: _editingName
                   ? TextField(
                       controller: _nameCtrl,
                       autofocus: true,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white),
+                          color: context.cs.onSurface),
                       decoration: const InputDecoration(
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(
@@ -331,51 +333,51 @@ class _MainScreenState extends State<MainScreen> {
                           Flexible(
                             child: Text(
                               p.plan.planName,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white),
+                                  color: context.cs.onSurface),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(Icons.edit,
-                              size: 14, color: Colors.white54),
+                          Icon(Icons.edit,
+                              size: 14, color: context.cs.onSurfaceVariant),
                         ],
                       ),
                     ),
             ),
             if (p.localMode)
               IconButton(
-                  icon: const Icon(Icons.cloud_upload,
-                      color: Colors.white70, size: 20),
+                  icon: Icon(Icons.cloud_upload,
+                      color: context.cs.onSurfaceVariant, size: 20),
                   tooltip: 'Mit Server synchronisieren',
                   onPressed: () => _shareLocalPlan()),
             if (p.hasUnsyncedChanges)
               IconButton(
-                  icon: const Icon(Icons.cloud_off, color: Colors.amber,
+                  icon: Icon(Icons.cloud_off, color: context.tone(Colors.amber),
                       size: 20),
                   tooltip: 'Änderungen noch nicht auf dem Server. '
                       'Tippen zum erneuten Senden.',
                   onPressed: p.refreshPlanFromServer),
             IconButton(
-                icon: const Icon(Icons.download, color: Colors.white70,
+                icon: Icon(Icons.download, color: context.cs.onSurfaceVariant,
                     size: 20),
                 tooltip: 'Importieren',
                 onPressed: () => _import(p)),
             IconButton(
-                icon: const Icon(Icons.upload, color: Colors.white70,
+                icon: Icon(Icons.upload, color: context.cs.onSurfaceVariant,
                     size: 20),
                 tooltip: 'Exportieren',
                 onPressed: () => _export(p)),
             IconButton(
-                icon: const Icon(Icons.add_circle_outline,
-                    color: Colors.white70, size: 20),
+                icon: Icon(Icons.add_circle_outline,
+                    color: context.cs.onSurfaceVariant, size: 20),
                 tooltip: 'Semester hinzufügen',
                 onPressed: () => p.addSemester()),
             IconButton(
-                icon: const Icon(Icons.settings,
-                    color: Colors.white70, size: 20),
+                icon: Icon(Icons.settings,
+                    color: context.cs.onSurfaceVariant, size: 20),
                 tooltip: p.plan.isEffectivelyConfigured
                     ? 'Planeinstellungen'
                     : 'Plan einrichten',
@@ -383,24 +385,24 @@ class _MainScreenState extends State<MainScreen> {
                     ? _openSettings(p)
                     : _openSetup(p)),
             if (p.localMode)
-              const Tooltip(
+              Tooltip(
                 message: 'Lokaler Modus – keine Serververbindung',
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 4),
                   child: Icon(Icons.phone_android,
-                      color: Colors.amber, size: 18),
+                      color: context.tone(Colors.amber), size: 18),
                 ),
               ),
             if (!p.localMode)
               IconButton(
-                icon: const Icon(Icons.person_remove,
-                    color: Colors.red, size: 20),
+                icon: Icon(Icons.person_remove,
+                    color: context.tone(Colors.red), size: 20),
                 tooltip: 'Konto löschen',
                 onPressed: () => _deleteAccount(p),
               ),
             IconButton(
-                icon: const Icon(Icons.logout,
-                    color: Colors.white70, size: 20),
+                icon: Icon(Icons.logout,
+                    color: context.cs.onSurfaceVariant, size: 20),
                 tooltip: 'Abmelden',
                 onPressed: () => p.logout()),
           ],
@@ -411,23 +413,23 @@ class _MainScreenState extends State<MainScreen> {
         margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.blue.shade900.withAlpha(128),
+          color: context.tone(Colors.blue).withAlpha(30),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.blue.shade700),
+          border: Border.all(color: context.tone(Colors.blue).withAlpha(120)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline, color: Colors.blue, size: 16),
+            Icon(Icons.info_outline, color: context.tone(Colors.blue), size: 16),
             const SizedBox(width: 8),
-            const Expanded(
+            Expanded(
               child: Text(
                 'WS/SS bei Veranstaltungen ist ein Hinweis zum Turnus. '
                 'Klausuren können weiterhin in jedem Semester geplant werden.',
-                style: TextStyle(color: Colors.blue, fontSize: 12),
+                style: TextStyle(color: context.tone(Colors.blue), fontSize: 12),
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.close, size: 14, color: Colors.blue),
+              icon: Icon(Icons.close, size: 14, color: context.tone(Colors.blue)),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
               onPressed: () =>
@@ -443,41 +445,91 @@ class _MainScreenState extends State<MainScreen> {
     final avg = plan.averageGrade;
     if (total == 0) return const SizedBox.shrink();
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _chip('$total ECTS', 'geplant', Colors.blue),
-        const SizedBox(width: 8),
-        _chip('$passed ECTS', 'bestanden', Colors.green),
+        _statCard(
+          value: '$total ECTS',
+          label: 'Geplant',
+          icon: Icons.event_note_rounded,
+          color: Colors.blue,
+          caption: '${plan.semesters.length} Semester',
+        ),
+        const SizedBox(width: 12),
+        _statCard(
+          value: '$passed ECTS',
+          label: 'Bestanden',
+          icon: Icons.verified_rounded,
+          color: Colors.green,
+          caption: '${(passed * 100 / total).round()} % geschafft',
+        ),
         if (avg != null) ...[
-          const SizedBox(width: 8),
-          _chip(
-            'Ø ${avg.toStringAsFixed(1)}',
-            plan.weightAverageGradeByEcts ? 'Note · ECTS' : 'Note',
-            Colors.purple,
+          const SizedBox(width: 12),
+          _statCard(
+            value: 'Ø ${avg.toStringAsFixed(1)}',
+            label: 'Notenschnitt',
+            icon: Icons.grade_rounded,
+            color: Colors.purple,
+            caption: plan.weightAverageGradeByEcts ? 'nach ECTS gewichtet' : null,
           ),
         ],
       ],
     );
   }
 
-  Widget _chip(String value, String label, Color color) => Expanded(
-        child: Container(
-          padding:
-              const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-          decoration: BoxDecoration(
-            color: color.withAlpha(40),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withAlpha(100)),
+  /// A stat card like Focus Flow's: tinted icon, label, big value, caption.
+  Widget _statCard({
+    required String value,
+    required String label,
+    required IconData icon,
+    required MaterialColor color,
+    String? caption,
+  }) {
+    final theme = Theme.of(context);
+    final accent = context.tone(color);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Expanded(
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 16, color: accent),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium
+                          ?.copyWith(color: muted)),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value,
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+              ),
+              if (caption != null)
+                Text(caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+            ],
           ),
-          child: Column(children: [
-            Text(value,
-                style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
-            Text(label,
-                style:
-                    const TextStyle(color: Colors.white54, fontSize: 10)),
-          ]),
         ),
-      );
+      ),
+    );
+  }
 }

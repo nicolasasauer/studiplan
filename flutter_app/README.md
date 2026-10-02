@@ -48,7 +48,7 @@ Eine Veranstaltung kann weiterhin in jedem Semester geplant werden; bei Abweichu
 
 ## Tech Stack
 
-- Flutter 3 (Dart, SDK `>=3.3.0 <4.0.0`)
+- Flutter 3.44 (Dart, SDK `>=3.10.0 <4.0.0`)
 - Provider (State Management)
 - http (REST-API-Client)
 - shared_preferences (Lokale Persistenz)

@@ -131,7 +131,7 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
                               color: Colors.white70, fontSize: 13)),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
-                        value: _season,
+                        initialValue: _season,
                         dropdownColor: const Color(0xFF334155),
                         decoration: const InputDecoration(isDense: true),
                         items: const [

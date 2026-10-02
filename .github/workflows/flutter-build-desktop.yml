@@ -33,7 +33,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.x'
+          flutter-version: '3.44.0'
           channel: 'stable'
           cache: true
 
@@ -58,9 +58,7 @@ jobs:
           if-no-files-found: error
 
   windows:
-    # Flutter 3.22 erkennt nur Visual Studio bis 2022. Auf windows-latest
-    # fällt es auf "Visual Studio 16 2019" zurück und findet nichts.
-    runs-on: windows-2022
+    runs-on: windows-latest
     permissions:
       contents: read
 
@@ -74,7 +72,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.x'
+          flutter-version: '3.44.0'
           channel: 'stable'
           cache: true
 

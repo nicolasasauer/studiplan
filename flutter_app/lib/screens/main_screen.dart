@@ -40,17 +40,21 @@ class _MainScreenState extends State<MainScreen> {
       // Auf dem Desktop gibt es kein Teilen-Menü für Dateien (Linux), dort
       // wird direkt gespeichert.
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        final path = await FilePicker.platform.saveFile(
+        // Writes the file itself; returns null when cancelled.
+        final saved = await FilePicker.saveFile(
           dialogTitle: 'Plan exportieren',
           fileName: 'studi_plan_export.json',
+          bytes: utf8.encode(json),
+          mimeType: 'application/json',
           type: FileType.custom,
           allowedExtensions: ['json'],
         );
-        if (path == null) return;
-        await File(path).writeAsString(json);
+        if (saved == null) return;
+        final where =
+            saved.scheme == 'file' ? saved.toFilePath() : saved.toString();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Plan gespeichert: $path')),
+            SnackBar(content: Text('Plan gespeichert: $where')),
           );
         }
         return;
@@ -58,9 +62,11 @@ class _MainScreenState extends State<MainScreen> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/studi_plan_export.json');
       await file.writeAsString(json);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/json')],
-        subject: 'StudiPlan Export',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'application/json')],
+          subject: 'StudiPlan Export',
+        ),
       );
     } catch (e) {
       if (mounted) {
@@ -87,21 +93,22 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _import(StudyPlanProvider p) async {
-    final result = await FilePicker.platform.pickFiles(
+    final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
-      withData: true,
     );
-    if (result == null || result.files.isEmpty) return;
-    String? content;
-    final bytes = result.files.first.bytes;
-    if (bytes != null) {
-      content = utf8.decode(bytes);
-    } else {
-      final path = result.files.first.path;
-      if (path != null) content = await File(path).readAsString();
+    if (files.isEmpty) return;
+    final String content;
+    try {
+      content = utf8.decode(await files.first.readAsBytes());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Datei konnte nicht gelesen werden: $e'),
+        backgroundColor: Colors.red.shade700,
+      ));
+      return;
     }
-    if (content == null) return;
     final err = await p.importJson(content);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(

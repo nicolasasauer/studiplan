@@ -4,7 +4,9 @@ publish_to: 'none'
 version: 1.0.0+7
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.10.0 <4.0.0'
+  # file_picker 13 needs it; CI builds with 3.44.
+  flutter: '>=3.38.0'
 
 dependencies:
   flutter:
@@ -14,14 +16,14 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.3.2
   uuid: ^4.4.0
-  file_picker: ^8.1.2
-  share_plus: ^10.0.2
+  file_picker: ^13.1.0
+  share_plus: ^13.3.1
   path_provider: ^2.1.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
 
 flutter:

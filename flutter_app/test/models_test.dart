@@ -185,7 +185,7 @@ void main() {
       expect(restored.weightAverageGradeByEcts, isFalse);
     });
 
-    test('passedEcts counts across semesters and parking lot', () {
+    test('totals leave the parking lot out', () {
       final plan = StudyPlan(
         parkingLot: [
           Lecture(
@@ -194,7 +194,8 @@ void main() {
               ects: 4,
               season: 'both',
               color: '#FF6B6B',
-              passed: true),
+              passed: true,
+              grade: 1.0),
         ],
         semesters: [
           Semester(
@@ -208,7 +209,8 @@ void main() {
                   ects: 5,
                   season: 'winter',
                   color: '#FF6B6B',
-                  passed: true),
+                  passed: true,
+                  grade: 3.0),
               Lecture(
                   id: 'l2',
                   name: 'B',
@@ -219,8 +221,11 @@ void main() {
           ),
         ],
       );
-      expect(plan.passedEcts, 9); // 4 (parking) + 5 (semester)
-      expect(plan.totalEcts, 12);
+      // Only the semester counts; the passed, graded parking module does not.
+      expect(plan.totalEcts, 8);
+      expect(plan.passedEcts, 5);
+      expect(plan.averageGrade, 3.0);
+      expect(plan.calculateAverageGrade(weightedByEcts: true), 3.0);
     });
 
     test('fromJson normalizes lecture locations for semester and parking lot', () {
@@ -279,18 +284,16 @@ void main() {
                 passed: true,
                 grade: 1.0,
               ),
+              Lecture(
+                id: 'l2',
+                name: 'Seminar',
+                ects: 5,
+                season: 'both',
+                color: '#4ECDC4',
+                passed: true,
+                grade: 3.0,
+              ),
             ],
-          ),
-        ],
-        parkingLot: [
-          Lecture(
-            id: 'p1',
-            name: 'Seminar',
-            ects: 5,
-            season: 'both',
-            color: '#4ECDC4',
-            passed: true,
-            grade: 3.0,
           ),
         ],
       );

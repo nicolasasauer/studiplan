@@ -133,7 +133,9 @@
 
 **Ziel:** Automatischer iOS-Build bei jedem Push, analog zum bestehenden Android-Workflow.
 
-- [x] Neuen Workflow `.github/workflows/flutter-build-ios.yml` anlegen:
+> **Stand Oktober 2026:** Der Workflow wurde wieder entfernt, weil iOS vorerst nicht gebaut wird und das iOS-Projekt im Repo unvollständig ist (kein `Runner.xcodeproj`, kein `Podfile`). Er scheiterte deshalb bei jedem Lauf an `pod install`. Vor dem Wiederherstellen erst Phase 1 abschließen; der alte Stand liegt in der Git-Historie.
+
+- [ ] Neuen Workflow `.github/workflows/flutter-build-ios.yml` anlegen:
   ```yaml
   name: Flutter iOS Build
 
@@ -267,8 +269,8 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 8
 | 4 | Konfig für `flutter_launcher_icons` in `pubspec.yaml` angelegt (`ios: true`, `android: true`) | ✅ |
 | 4 | Placeholder-Icons unter `flutter_app/assets/icon/app_icon.png` und `app_icon_foreground.png` erstellt | ✅ |
 | 4 | `assets/icon/` als Flutter-Asset in `pubspec.yaml` registriert | ✅ |
-| 7 | GitHub Actions Workflow `.github/workflows/flutter-build-ios.yml` erstellt | ✅ |
-| 7 | Workflow initialisiert iOS-Platform automatisch per `flutter create --platforms=ios .` falls `ios/` fehlt | ✅ |
+| 7 | GitHub Actions Workflow `.github/workflows/flutter-build-ios.yml` erstellt (Oktober 2026 wieder entfernt) | ❌ |
+| 7 | Workflow initialisiert iOS-Platform automatisch per `flutter create --platforms=ios .` falls `ios/` fehlt (mit dem Workflow entfernt) | ❌ |
 | 7 | Workflow führt `flutter analyze`, `flutter test`, `pod install` und `flutter build ios --release --no-codesign` aus | ✅ |
 | 7 | Build-Artefakt (`Runner.app`) wird als GitHub-Actions-Artefakt hochgeladen (30 Tage) | ✅ |
 | 7 | Kommentierte Vorlage für signierten IPA-Build (mit `IOS_P12_BASE64` etc.) im Workflow hinterlegt | ✅ |

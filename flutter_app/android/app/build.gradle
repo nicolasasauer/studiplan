@@ -24,6 +24,8 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace "com.nicolas.studiplan"
     compileSdkVersion 36
+    // The highest NDK any plugin needs (jni); NDKs are backward compatible.
+    ndkVersion "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8

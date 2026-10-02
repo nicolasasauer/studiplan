@@ -55,6 +55,7 @@ jobs:
           name: studiplan-linux-x64-${{ github.sha }}
           path: flutter_app/build/linux/x64/release/studiplan-linux-x64.tar.gz
           retention-days: 30
+          if-no-files-found: error
 
   windows:
     # Flutter 3.22 erkennt nur Visual Studio bis 2022. Auf windows-latest
@@ -66,6 +67,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The commit count numbers the Store versions.
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -82,9 +86,95 @@ jobs:
         working-directory: flutter_app
         run: flutter build windows --release
 
+      # The .exe needs its DLLs and the data folder beside it.
+      - name: Package Windows build
+        working-directory: flutter_app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item -Recurse build\windows\x64\runner\Release studiplan
+          Compress-Archive -Path studiplan -DestinationPath dist\studiplan-windows-x64.zip
+
+      # The Store package wraps the same build (msix_config in pubspec.yaml
+      # skips a second build). Store versions are a.b.c.0; the commit count
+      # in the third place keeps them rising with every merge. Unsigned on
+      # purpose - the Store signs it - so it is for uploading, not for
+      # installing directly. msix is installed globally so pubspec.lock does
+      # not change.
+      - name: Build Store package (MSIX)
+        working-directory: flutter_app
+        shell: bash
+        run: |
+          dart pub global activate msix
+          dart pub global run msix:create \
+            --version "1.0.$(git rev-list --count HEAD).0" \
+            --output-path dist --output-name studiplan-store
+          ls -lh dist
+
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
           name: studiplan-windows-x64-${{ github.sha }}
-          path: flutter_app/build/windows/x64/runner/Release/
+          path: |
+            flutter_app/dist/studiplan-windows-x64.zip
+            flutter_app/dist/studiplan-store.msix
           retention-days: 30
+          if-no-files-found: error
+
+  # Puts the desktop builds of every merge into the "desktop-latest" release,
+  # so they outlive the 30-day artifacts and can be downloaded directly.
+  publish:
+    runs-on: ubuntu-latest
+    needs: [linux, windows]
+    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (needs.linux.result == 'success' || needs.windows.result == 'success')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # softprops/action-gh-release never moves an existing tag.
+      - name: Move tag "desktop-latest"
+        run: |
+          git tag -f desktop-latest
+          git push -f origin desktop-latest
+
+      # overwrite_files only replaces what is uploaded again. A build that
+      # failed this time would otherwise leave the previous version sitting
+      # next to the new one, looking current.
+      - name: Remove stale files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for file in studiplan-linux-x64.tar.gz studiplan-windows-x64.zip studiplan-store.msix; do
+            if [ ! -f "dist/$file" ]; then
+              gh release delete-asset desktop-latest "$file" --yes 2>/dev/null || true
+            fi
+          done
+          ls -lh dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: Desktop – neuester Build
+          prerelease: true
+          make_latest: false
+          files: dist/*
+          overwrite_files: true
+          body: |
+            Automatisch gebaut aus ${{ github.sha }} (Lauf ${{ github.run_number }})
+
+            | Datei | Plattform | Status |
+            | --- | --- | --- |
+            | `studiplan-windows-x64.zip` | Windows 10/11 | ${{ needs.windows.result }} |
+            | `studiplan-store.msix` | Windows, nur zum Hochladen in den Microsoft Store | ${{ needs.windows.result }} |
+            | `studiplan-linux-x64.tar.gz` | Linux (x64, GTK 3) | ${{ needs.linux.result }} |
+
+            Desktop: Archiv entpacken und `studi_plan.exe` bzw. `studi_plan`
+            starten – die Datei muss neben ihren Ordnern liegen bleiben.

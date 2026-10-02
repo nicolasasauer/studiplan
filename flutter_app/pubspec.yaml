@@ -38,3 +38,23 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
   web:
     generate: false
+
+# Windows package for the Microsoft Store, built in CI by
+# .github/workflows/flutter-build-desktop.yml (`msix:create`, installed there
+# globally, so pubspec.lock stays untouched). The identity values come from
+# Partner Center (Product identity) and must match it exactly, or the Store
+# rejects the upload. Not secret: every Store package carries them. The Store
+# signs the package itself, hence no certificate. CI passes the version; the
+# Store demands a last segment of 0.
+msix_config:
+  display_name: StudiPlan
+  publisher_display_name: NicoSauer
+  identity_name: TODO.FromPartnerCenter
+  publisher: CN=TODO-FROM-PARTNER-CENTER
+  logo_path: assets/icon/app_icon.png
+  languages: de-de
+  # Talks to a self-hosted StudiPlan server, on the internet or in the LAN
+  # (e.g. http://192.168.x.x:3000). The app itself listens on nothing.
+  capabilities: internetClient, privateNetworkClientServer
+  store: true
+  build_windows: false

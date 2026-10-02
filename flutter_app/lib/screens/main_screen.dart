@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/study_plan.dart';
 import '../providers/study_plan_provider.dart';
+import '../models/lecture.dart';
 import '../widgets/add_lecture_dialog.dart';
+import '../widgets/lecture_drag.dart';
 import '../widgets/parking_lot_section.dart';
 import '../widgets/plan_setup_dialog.dart';
 import '../widgets/plan_settings_dialog.dart';
@@ -29,10 +31,70 @@ class _MainScreenState extends State<MainScreen> {
   bool _setupDialogScheduled = false;
   bool _setupDialogOpen = false;
 
+  final _listScroll = ScrollController();
+  final _listViewport = GlobalKey();
+  late final LectureDragController _drag =
+      LectureDragController(onDrop: _onLectureDrop)
+        ..attachList(_listScroll, _listViewport);
+
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _drag.dispose();
+    _listScroll.dispose();
     super.dispose();
+  }
+
+  Lecture? _lectureById(StudyPlanProvider p, String id) {
+    for (final sem in p.plan.semesters) {
+      for (final l in sem.lectures) {
+        if (l.id == id) return l;
+      }
+    }
+    for (final l in p.plan.parkingLot) {
+      if (l.id == id) return l;
+    }
+    return null;
+  }
+
+  /// A lecture was dragged onto [target]: move it and offer to undo.
+  Future<void> _onLectureDrop(
+      LectureDragData data, DropTargetId target) async {
+    final p = context.read<StudyPlanProvider>();
+    final from = p.locateLecture(data.lectureId);
+    final lecture = _lectureById(p, data.lectureId);
+    if (from == null || lecture == null) return; // Gone meanwhile (sync).
+
+    final to = target == LectureDragController.parkingLot ? null : target;
+    if (!await p.moveLecture(data.lectureId, to)) return;
+    if (!mounted) return;
+
+    final where = to == null
+        ? 'Parkplatz'
+        : '${p.plan.semesters.firstWhere((s) => s.id == to).number}. Semester';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('${lecture.name} → $where'),
+        // Long enough to reach "Rückgängig" after noticing a wrong drop.
+        duration: const Duration(seconds: 8),
+        // With an action the bar would otherwise stay until dismissed.
+        persist: false,
+        action: SnackBarAction(
+          label: 'Rückgängig',
+          onPressed: () async {
+            final back = await p.moveLecture(data.lectureId, from.semesterId,
+                index: from.index);
+            // Its old semester was deleted in the meantime: the parking lot
+            // is where that semester's lectures went, too.
+            if (!back &&
+                from.semesterId != null &&
+                p.plan.semesters.every((s) => s.id != from.semesterId)) {
+              await p.moveLecture(data.lectureId, null);
+            }
+          },
+        ),
+      ));
   }
 
   Future<void> _export(StudyPlanProvider p) async {
@@ -261,16 +323,23 @@ class _MainScreenState extends State<MainScreen> {
     _closeSetupIfNoLongerNeeded(p);
     _scheduleInitialSetupIfNeeded(p);
 
-    return Scaffold(
+    return LectureDragScope(
+      controller: _drag,
+      child: LectureDragListener(
+      controller: _drag,
+      child: Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(p),
             if (!_bannerDismissed) _buildBanner(),
             Expanded(
-              child: RefreshIndicator(
+              child: KeyedSubtree(
+                key: _listViewport,
+                child: RefreshIndicator(
                 onRefresh: p.refreshPlanFromServer,
                 child: ListView(
+                  controller: _listScroll,
                   padding: const EdgeInsets.all(12),
                   children: [
                     _buildStats(plan),
@@ -286,6 +355,7 @@ class _MainScreenState extends State<MainScreen> {
                   ],
                 ),
               ),
+              ),
             ),
           ],
         ),
@@ -294,6 +364,8 @@ class _MainScreenState extends State<MainScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Veranstaltung'),
         onPressed: () => _addLecture(p),
+      ),
+    ),
       ),
     );
   }

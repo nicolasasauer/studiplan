@@ -726,6 +726,52 @@ class StudyPlanProvider extends ChangeNotifier {
     }
   }
 
+  /// Where [lectureId] lives right now: its semester (`null` for the parking
+  /// lot) and its position there, or `null` if the plan has no such lecture.
+  ({String? semesterId, int index})? locateLecture(String lectureId) =>
+      _findLectureLocation(lectureId);
+
+  /// Moves [lectureId] into [toSemesterId], or onto the parking lot when it
+  /// is `null`, from wherever the lecture is *now* - not where a drag started:
+  /// the 30-second sync may have replaced the plan in between.
+  ///
+  /// Appends, or inserts at [index] (clamped) when given, e.g. to undo a
+  /// move. Returns `false` and changes nothing when the lecture or the target
+  /// semester is gone, or when the lecture already sits there.
+  Future<bool> moveLecture(
+    String lectureId,
+    String? toSemesterId, {
+    int? index,
+  }) async {
+    final from = locateLecture(lectureId);
+    if (from == null) return false;
+
+    final List<Lecture> target;
+    if (toSemesterId == null) {
+      target = _plan.parkingLot;
+    } else {
+      final sem =
+          _plan.semesters.firstWhereOrNull((s) => s.id == toSemesterId);
+      if (sem == null) return false;
+      target = sem.lectures;
+    }
+
+    final source = from.semesterId == null
+        ? _plan.parkingLot
+        : _plan.semesters.firstWhere((s) => s.id == from.semesterId).lectures;
+    if (identical(source, target) &&
+        (index == null || index == from.index)) {
+      return false;
+    }
+
+    final lecture = source.removeAt(from.index);
+    final moved = lecture.copyWith(semesterId: toSemesterId);
+    final at = (index ?? target.length).clamp(0, target.length);
+    target.insert(at, moved);
+    await _save();
+    return true;
+  }
+
   Future<void> moveLectureToSemester(
     String lectureId,
     String? fromSemesterId,

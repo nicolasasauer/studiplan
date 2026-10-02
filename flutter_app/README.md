@@ -13,8 +13,8 @@ Sie bietet dieselbe Planungsfunktionalitaet wie die Web-App, jedoch als native A
 - Muendliche-Pruefung-Markierung (Note standardmaessig 4,0)
 - ECTS- und Notenstatistik im Header (gesamt geplant, bestanden, Durchschnittsnote)
 - Notenstatistik pro Semester
-- Parkplatz fuer noch nicht zugeordnete Veranstaltungen
-- Veranstaltungen zwischen Semestern und Parkplatz verschieben
+- Parkplatz fuer noch nicht zugeordnete Veranstaltungen (zaehlt nicht in ECTS und Notenschnitt)
+- Veranstaltungen per Drag & drop zwischen Semestern und Parkplatz verschieben (Desktop: mit der Maus ziehen, Handy: lange druecken und ziehen; Rueckgaengig moeglich) oder ueber das Verschieben-Symbol
 - Sortierung pro Semester nach Klausurdatum oder ECTS
 - Semester ein-/ausklappbar
 - Semester loeschbar (Veranstaltungen landen automatisch im Parkplatz)
@@ -32,7 +32,7 @@ Beim Start meldet man sich mit einem bestehenden Benutzer an oder legt einen neu
 ![Login-Bildschirm mit Benutzerliste](https://github.com/user-attachments/assets/2467ed86-43f0-45ec-b472-9251326b34c6)
 
 ### Semesteruebersicht
-Die Hauptansicht zeigt alle Semester mit Veranstaltungskarten inklusive ECTS, Note, Klausurdatum und Bestandenstatus. Statistik-Chips im Header zeigen geplante und bestandene ECTS sowie die Durchschnittsnote. Veranstaltungen lassen sich per Langdruck in andere Semester oder den Parkplatz verschieben.
+Die Hauptansicht zeigt alle Semester mit Veranstaltungskarten inklusive ECTS, Note, Klausurdatum und Bestandenstatus. Statistik-Chips im Header zeigen geplante und bestandene ECTS sowie die Durchschnittsnote. Veranstaltungen lassen sich per Drag & drop in andere Semester oder den Parkplatz ziehen: am Desktop direkt mit der Maus, am Handy nach langem Druecken. Am Listenrand scrollt die Ansicht mit, zugeklappte Semester oeffnen sich, wenn man kurz darueber verweilt, und ein Hinweis zeigt an, wenn der Turnus nicht passt.
 
 ![Hauptansicht mit Semestern und ECTS-Statistik](https://github.com/user-attachments/assets/82de6d1f-2384-483f-ab55-202aba6d84ac)
 
@@ -128,6 +128,7 @@ flutter_app/
       storage_service.dart        # Lokale Persistenz
     widgets/
       lecture_card.dart           # Veranstaltungskarte
+      lecture_drag.dart           # Drag & drop: Ziehen, Ablageziele, Auto-Scroll
       semester_section.dart       # Semesterbereich mit Veranstaltungen
       parking_lot_section.dart    # Parkplatz fuer unzugeordnete Veranstaltungen
       add_lecture_dialog.dart     # Dialog: Veranstaltung anlegen/bearbeiten

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/study_plan_provider.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
 /// Gibt den lokalen Plan zur Synchronisierung frei: Anmeldung an einem
@@ -66,7 +67,7 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
         final choice = await _askConflict();
         if (choice != null && mounted) await _share(choice);
       case ShareLocalPlanStatus.requiresPassword:
-        setState(() => _error = 'Dieses Konto hat ein Passwort.');
+        setState(() => _error = 'Bitte das Passwort dieses Kontos eingeben.');
       case ShareLocalPlanStatus.failed:
         setState(() => _error = result.error ?? 'Freigabe fehlgeschlagen');
     }
@@ -183,8 +184,9 @@ class _ShareLocalPlanDialogState extends State<ShareLocalPlanDialog> {
               obscureText: true,
               decoration: InputDecoration(
                 labelText: _createAccount
-                    ? 'Passwort (optional)'
-                    : 'Passwort (falls gesetzt)',
+                    ? 'Passwort * (mindestens '
+                        '${ApiService.minPasswordLength} Zeichen)'
+                    : 'Passwort *',
                 prefixIcon: const Icon(Icons.lock),
               ),
               onSubmitted: (_) => _busy ? null : _share(),

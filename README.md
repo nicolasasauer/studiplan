@@ -127,6 +127,16 @@ docker-compose down
 
 Daten werden in einem Docker-Volume (`studiumsplaner_data`) unter `/data/studiumsplaner.db` gespeichert (SQLite-Datenbank).
 
+### Konten und Passwoerter
+
+Server-Konten brauchen ein Passwort mit mindestens 8 Zeichen (der lokale Modus der App ist davon nicht betroffen). Aeltere Konten ohne Passwort sind gesperrt, bis auf dem Server eines gesetzt wird. Dasselbe Skript hilft bei einem vergessenen Passwort:
+
+```bash
+docker compose exec studiumsplaner node server/set-password.js <benutzername>
+```
+
+Das Passwort wird zweimal abgefragt und nicht angezeigt. Anmelden und Konto anlegen sind auf 20 Versuche pro 15 Minuten begrenzt.
+
 ### Docker Image selber bauen
 
 ```bash

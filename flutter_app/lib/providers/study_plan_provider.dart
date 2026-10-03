@@ -206,6 +206,8 @@ class StudyPlanProvider extends ChangeNotifier {
       if (_baseUrl.isEmpty) {
         return 'Server-URL nicht konfiguriert';
       }
+      final passwordError = ApiService.checkNewPassword(password);
+      if (passwordError != null) return passwordError;
 
       final r = await _api.createUser(username, password);
       if (r.isSuccess && r.data != null) {
@@ -314,6 +316,13 @@ class StudyPlanProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final api = _apiFactory(url);
+      if (createAccount) {
+        final passwordError = ApiService.checkNewPassword(password);
+        if (passwordError != null) {
+          return ShareLocalPlanResult(
+              ShareLocalPlanStatus.failed, passwordError);
+        }
+      }
       final auth = createAccount
           ? await api.createUser(username.trim(), password)
           : await api.login(username.trim(), password);

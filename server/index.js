@@ -13,6 +13,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_PASSWORD_LENGTH = 128;
+const MIN_PASSWORD_LENGTH = 8;
 
 const sessions = new Map();
 
@@ -111,6 +112,16 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Strenger fuer Anmelden und Konto anlegen, damit Passwoerter nicht durch
+// Ausprobieren erraten werden koennen.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.' },
+});
+
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(DIST_DIR));
 
@@ -193,21 +204,25 @@ app.get('/api/users', apiLimiter, (_req, res) => {
   }
 });
 
-app.post('/api/users', apiLimiter, async (req, res) => {
+app.post('/api/users', apiLimiter, authLimiter, async (req, res) => {
   const username = sanitizeUsername(req.body?.username);
   if (!username) {
     return res.status(400).json({ error: 'Ungueltiger Benutzername' });
   }
 
+  // Server-Konten brauchen ein Passwort: Die Benutzerliste ist oeffentlich,
+  // ein Konto ohne Passwort koennte sonst jeder oeffnen.
   const password = req.body?.password;
-  if (typeof password === 'string' && password.length > MAX_PASSWORD_LENGTH) {
+  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({
+      error: `Passwort erforderlich (mindestens ${MIN_PASSWORD_LENGTH} Zeichen)`,
+    });
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
     return res.status(400).json({ error: 'Passwort zu lang' });
   }
 
-  let passwordHash = null;
-  if (typeof password === 'string' && password.length > 0) {
-    passwordHash = await bcrypt.hash(password, 12);
-  }
+  const passwordHash = await bcrypt.hash(password, 12);
 
   try {
     stmtCreateUser.run(username, passwordHash);
@@ -226,7 +241,7 @@ app.post('/api/users', apiLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/login', apiLimiter, async (req, res) => {
+app.post('/api/login', apiLimiter, authLimiter, async (req, res) => {
   const username = sanitizeUsername(req.body?.username);
   if (!username) {
     return res.status(400).json({ error: 'Ungueltiger Benutzername' });
@@ -237,9 +252,15 @@ app.post('/api/login', apiLimiter, async (req, res) => {
     return res.status(404).json({ error: 'Benutzer nicht gefunden' });
   }
 
+  // Alte Konten ohne Passwort sind gesperrt, bis auf dem Server eines gesetzt
+  // wird: node server/set-password.js <benutzername>
   if (user.password_hash === null) {
-    const token = createSession(user.username);
-    return res.json({ username: user.username, token });
+    return res.status(403).json({
+      error:
+        'Dieses Konto hat kein Passwort und ist deshalb gesperrt. ' +
+        'Ein Passwort muss auf dem Server gesetzt werden.',
+      passwordSetupRequired: true,
+    });
   }
 
   const password = req.body?.password;

@@ -39,7 +39,7 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test/',
         username: 'Neu',
-        password: 'geheim',
+        password: 'geheim123',
         createAccount: true,
       );
 
@@ -51,7 +51,7 @@ void main() {
       expect(provider.plan.semesters, hasLength(3));
       expect(provider.hasUnsyncedChanges, isFalse);
       expect(server.plan!['planName'], 'Lokaler Plan');
-      expect(server.users['Neu'], 'geheim');
+      expect(server.users['Neu'], 'geheim123');
 
       // Der lokale Benutzer ist archiviert, der Plan bleibt erhalten.
       final storage = StorageService();
@@ -86,6 +86,7 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -101,6 +102,7 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -114,6 +116,7 @@ void main() {
       final upload = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
         resolution: ServerPlanResolution.uploadLocal,
       );
@@ -131,6 +134,7 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
         resolution: ServerPlanResolution.keepServer,
       );
@@ -178,6 +182,7 @@ void main() {
       final result = await failing.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -195,6 +200,7 @@ void main() {
       final result = await offline.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -222,6 +228,7 @@ void main() {
       await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -246,6 +253,7 @@ void main() {
       await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
       await provider.logout();
@@ -267,6 +275,7 @@ void main() {
       await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -277,6 +286,40 @@ void main() {
       expect(await provider.restoreArchivedPlan(entry.id), isNull);
       provider.dispose();
     });
+  });
+
+  test('rejects a new server account without a proper password', () async {
+    final server = FakeServer()..plan = null;
+    final provider = await _localProvider(server);
+
+    final result = await provider.shareLocalPlan(
+      serverUrl: 'http://server.test',
+      username: 'Neu',
+      password: 'kurz',
+      createAccount: true,
+    );
+
+    expect(result.status, ShareLocalPlanStatus.failed);
+    expect(result.error, contains('mindestens 8 Zeichen'));
+    expect(server.users.containsKey('Neu'), isFalse);
+    expect(provider.localMode, isTrue);
+    provider.dispose();
+  });
+
+  test('reports a locked account without password', () async {
+    final server = FakeServer()..users['Alt'] = null;
+    final provider = await _localProvider(server);
+
+    final result = await provider.shareLocalPlan(
+      serverUrl: 'http://server.test',
+      username: 'Alt',
+      createAccount: false,
+    );
+
+    expect(result.status, ShareLocalPlanStatus.failed);
+    expect(result.error, contains('kein Passwort'));
+    expect(provider.localMode, isTrue);
+    provider.dispose();
   });
 
   testWidgets('dialog asks about an existing server plan and uploads',
@@ -316,6 +359,8 @@ void main() {
         'Alice');
     await tester.tap(find.text('Bestehendes Konto'));
     await tester.pump();
+    await tester.enterText(find.widgetWithText(TextField, 'Passwort *'),
+        FakeServer.alicePassword);
     await tester.runAsync(() async {
       await tester.tap(find.text('Plan freigeben'));
       await Future<void>.delayed(const Duration(milliseconds: 50));

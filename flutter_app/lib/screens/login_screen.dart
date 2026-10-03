@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/archived_local_plan.dart';
 import '../providers/study_plan_provider.dart';
+import '../services/api_service.dart';
 import '../widgets/server_settings_dialog.dart';
 import '../theme/app_theme.dart';
 
@@ -656,7 +657,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _newPwCtrl,
                 obscureText: _obscureNewPw,
                 decoration: InputDecoration(
-                  labelText: 'Passwort (optional)',
+                  labelText: provider.localMode
+                      ? 'Passwort (optional)'
+                      : 'Passwort * (mindestens '
+                          '${ApiService.minPasswordLength} Zeichen)',
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureNewPw ? Icons.visibility : Icons.visibility_off,

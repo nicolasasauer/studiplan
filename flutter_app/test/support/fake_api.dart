@@ -9,8 +9,10 @@ class FakeServer {
   bool online = true;
   int saveCalls = 0;
 
-  /// Konten mit Passwort (`null` = ohne Passwort).
-  final Map<String, String?> users = {'Alice': null};
+  /// Konten mit Passwort (`null` = altes Konto ohne Passwort, gesperrt).
+  final Map<String, String?> users = {'Alice': alicePassword};
+
+  static const alicePassword = 'alice-pw1';
 
   /// Wenn gesetzt, wartet der nächste Abruf, bis der Completer fertig ist.
   Completer<void>? getGate;
@@ -31,7 +33,11 @@ class FakeApi extends ApiService {
       return const ApiResult(error: 'HTTP 404');
     }
     final expected = server.users[username];
-    if (expected != null) {
+    // Wie der Server: Konten ohne Passwort sind gesperrt.
+    if (expected == null) {
+      return const ApiResult(error: 'Dieses Konto hat kein Passwort');
+    }
+    {
       if (password == null || password.isEmpty) {
         return const ApiResult(requiresPassword: true);
       }
@@ -51,8 +57,10 @@ class FakeApi extends ApiService {
     if (server.users.containsKey(username)) {
       return const ApiResult(error: 'Benutzername bereits vergeben');
     }
-    server.users[username] =
-        password == null || password.isEmpty ? null : password;
+    if (password == null || password.length < 8) {
+      return const ApiResult(error: 'Passwort erforderlich');
+    }
+    server.users[username] = password;
     return ApiResult(data: {'username': username, 'token': 'token'});
   }
 

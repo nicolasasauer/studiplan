@@ -574,8 +574,9 @@ class StudyPlanProvider extends ChangeNotifier {
   Future<void> initializePlan(
     String name,
     int regularSemesters,
-    String startSeason,
-  ) async {
+    String startSeason, {
+    int? targetEcts,
+  }) async {
     final semesters = <Semester>[];
     String season = startSeason;
     for (int i = 1; i <= regularSemesters; i++) {
@@ -590,8 +591,19 @@ class StudyPlanProvider extends ChangeNotifier {
       regularSemesters: regularSemesters,
       startSeason: startSeason,
       isConfigured: true,
+      targetEcts: targetEcts,
       semesters: semesters,
     );
+    await _save();
+  }
+
+  /// Saves the settings dialog in one go, so the server gets one push.
+  Future<void> updatePlanSettings({
+    required bool weightAverageGradeByEcts,
+    required int? targetEcts,
+  }) async {
+    _plan.weightAverageGradeByEcts = weightAverageGradeByEcts;
+    _plan.targetEcts = StudyPlan.normalizeTargetEcts(targetEcts);
     await _save();
   }
 

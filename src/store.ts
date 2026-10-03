@@ -102,6 +102,8 @@ export const migrateStudyPlan = (raw: unknown): StudyPlan => {
     regularSemesters: DEFAULT_REGULAR_SEMESTERS,
     startSeason: DEFAULT_START_SEASON,
     isConfigured: false,
+    weightAverageGradeByEcts: false,
+    targetEcts: null,
     semesters: generateInitialSemesters(
       DEFAULT_REGULAR_SEMESTERS,
       DEFAULT_START_SEASON,
@@ -181,6 +183,8 @@ export const migrateStudyPlan = (raw: unknown): StudyPlan => {
       typeof data.isConfigured === 'boolean'
         ? data.isConfigured
         : semesters.length > 0,
+    weightAverageGradeByEcts: data.weightAverageGradeByEcts === true,
+    targetEcts: normalizeTargetEcts(data.targetEcts),
     semesters:
       semesters.length > 0
         ? semesters
@@ -188,6 +192,11 @@ export const migrateStudyPlan = (raw: unknown): StudyPlan => {
     parkingLot,
   };
 };
+
+export const normalizeTargetEcts = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 1
+    ? Math.min(999, Math.floor(value))
+    : null;
 
 export const isValidStudyPlan = (data: unknown): data is StudyPlan => {
   if (!data || typeof data !== 'object') return false;
@@ -253,6 +262,8 @@ const buildPlanFromState = (
     | 'regularSemesters'
     | 'startSeason'
     | 'isConfigured'
+    | 'weightAverageGradeByEcts'
+    | 'targetEcts'
     | 'semesters'
     | 'parkingLot'
   >,
@@ -261,6 +272,8 @@ const buildPlanFromState = (
   regularSemesters: state.regularSemesters,
   startSeason: state.startSeason,
   isConfigured: state.isConfigured,
+  weightAverageGradeByEcts: state.weightAverageGradeByEcts ?? false,
+  targetEcts: state.targetEcts ?? null,
   semesters: state.semesters,
   parkingLot: state.parkingLot,
 });
@@ -672,6 +685,7 @@ export const useStudyPlanStore = create<StudyPlanStore>((set, get) => {
         regularSemesters: normalizedSemesters,
         startSeason,
         isConfigured: true,
+        targetEcts: null,
         semesters: generateInitialSemesters(
           normalizedSemesters,
           startSeason,

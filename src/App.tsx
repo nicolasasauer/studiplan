@@ -52,6 +52,7 @@ function App() {
   const isConfigured = useStudyPlanStore((state) => state.isConfigured);
   const semesters = useStudyPlanStore((state) => state.semesters);
   const parkingLot = useStudyPlanStore((state) => state.parkingLot);
+  const targetEcts = useStudyPlanStore((state) => state.targetEcts ?? null);
   const initializePlan = useStudyPlanStore((state) => state.initializePlan);
   const setPlanName = useStudyPlanStore((state) => state.setPlanName);
   const addSemester = useStudyPlanStore((state) => state.addSemester);
@@ -110,6 +111,13 @@ function App() {
       setShowDeleteConfirm(false);
     }
   };
+
+  const targetDeltaLabel = (delta: number): string =>
+    delta < 0
+      ? `noch ${-delta} offen`
+      : delta === 0
+        ? 'Ziel erreicht'
+        : `${delta} über dem Ziel`;
 
   // The parking lot holds modules not planned into a semester yet; they count
   // towards none of the totals (same rule as the Flutter app).
@@ -339,8 +347,14 @@ function App() {
             {totalEcts > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-slate-700 pt-3 text-sm">
                 <span className="text-gray-400">
-                  <span className="font-semibold text-white">{totalEcts}</span>{' '}
-                  ECTS geplant
+                  <span className="font-semibold text-white">{totalEcts}</span>
+                  {targetEcts !== null && ` / ${targetEcts}`} ECTS geplant
+                  {targetEcts !== null && (
+                    <span className="text-gray-500">
+                      {' '}
+                      ({targetDeltaLabel(totalEcts - targetEcts)})
+                    </span>
+                  )}
                 </span>
                 {passedEcts > 0 && (
                   <span className="flex items-center gap-1 text-green-400">

@@ -260,9 +260,9 @@ class _MainScreenState extends State<MainScreen> {
           initialName: p.plan.planName,
           initialSemesters: p.plan.regularSemesters,
           initialSeason: p.plan.startSeason,
-          onSave: (name, n, season) async {
+          onSave: (name, n, season, targetEcts) async {
             try {
-              await p.initializePlan(name, n, season);
+              await p.initializePlan(name, n, season, targetEcts: targetEcts);
             } catch (e) {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -295,7 +295,9 @@ class _MainScreenState extends State<MainScreen> {
       context: context,
       builder: (_) => PlanSettingsDialog(
         initialWeightAverageGradeByEcts: p.plan.weightAverageGradeByEcts,
-        onSave: p.updateGradeWeighting,
+        initialTargetEcts: p.plan.targetEcts,
+        onSave: (weighted, targetEcts) => p.updatePlanSettings(
+            weightAverageGradeByEcts: weighted, targetEcts: targetEcts),
       ),
     );
   }
@@ -537,24 +539,39 @@ class _MainScreenState extends State<MainScreen> {
     final total = plan.totalEcts;
     final passed = plan.passedEcts;
     final avg = plan.averageGrade;
+    final target = plan.targetEcts;
+    final delta = plan.targetDelta;
     if (total == 0) return const SizedBox.shrink();
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Same height for all cards, even when one has a progress bar.
+    return IntrinsicHeight(
+        child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _statCard(
-          value: '$total ECTS',
+          key: const Key('stat-planned'),
+          value: target == null ? '$total ECTS' : '$total / $target ECTS',
           label: 'Geplant',
           icon: Icons.event_note_rounded,
           color: Colors.blue,
-          caption: '${plan.semesters.length} Semester',
+          caption: delta == null
+              ? '${plan.semesters.length} Semester'
+              : targetDeltaLabel(delta),
+          // More planned than the degree needs: worth a second look.
+          captionColor: delta != null && delta > 0
+              ? context.tone(Colors.orange)
+              : null,
+          progress: target == null ? null : (total / target).clamp(0.0, 1.0),
         ),
         const SizedBox(width: 12),
         _statCard(
+          key: const Key('stat-passed'),
           value: '$passed ECTS',
           label: 'Bestanden',
           icon: Icons.verified_rounded,
           color: Colors.green,
-          caption: '${(passed * 100 / total).round()} % geschafft',
+          caption: target == null
+              ? '${(passed * 100 / total).round()} % geschafft'
+              : '${(passed * 100 / target).round()} % vom Studium',
         ),
         if (avg != null) ...[
           const SizedBox(width: 12),
@@ -567,21 +584,25 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ],
-    );
+    ));
   }
 
   /// A stat card like Focus Flow's: tinted icon, label, big value, caption.
   Widget _statCard({
+    Key? key,
     required String value,
     required String label,
     required IconData icon,
     required MaterialColor color,
     String? caption,
+    Color? captionColor,
+    double? progress,
   }) {
     final theme = Theme.of(context);
     final accent = context.tone(color);
     final muted = theme.colorScheme.onSurfaceVariant;
     return Expanded(
+      key: key,
       child: Card(
         margin: EdgeInsets.zero,
         child: Padding(
@@ -619,7 +640,20 @@ class _MainScreenState extends State<MainScreen> {
                 Text(caption,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: captionColor ?? muted)),
+              if (progress != null) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 4,
+                    color: accent,
+                    backgroundColor: accent.withValues(alpha: 0.15),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

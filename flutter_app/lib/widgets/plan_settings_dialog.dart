@@ -59,7 +59,7 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final theme = context.watch<ThemeService>();
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 48),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -83,32 +83,34 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
                 style: TextStyle(color: muted, fontSize: 13),
               ),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<ThemeMode>(
-                  key: const ValueKey('theme-mode'),
-                  segments: const [
+              LayoutBuilder(builder: (context, constraints) {
+                // On a phone three segments with icon and check mark do not fit, and
+                // the labels would break mid-word.
+                final narrow = constraints.maxWidth < 360;
+                ButtonSegment<ThemeMode> segment(
+                        ThemeMode mode, IconData icon, String label) =>
                     ButtonSegment(
-                      value: ThemeMode.system,
-                      icon: Icon(Icons.brightness_auto_rounded),
-                      label: Text('System'),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.light,
-                      icon: Icon(Icons.light_mode_rounded),
-                      label: Text('Hell'),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.dark,
-                      icon: Icon(Icons.dark_mode_rounded),
-                      label: Text('Dunkel'),
-                    ),
-                  ],
-                  selected: {theme.mode},
-                  onSelectionChanged: (selection) =>
-                      context.read<ThemeService>().setMode(selection.first),
-                ),
-              ),
+                      value: mode,
+                      icon: narrow ? null : Icon(icon),
+                      label: Text(label, maxLines: 1, softWrap: false),
+                    );
+                return SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<ThemeMode>(
+                    key: const ValueKey('theme-mode'),
+                    showSelectedIcon: !narrow,
+                    segments: [
+                      segment(
+                          ThemeMode.system, Icons.brightness_auto_rounded, 'System'),
+                      segment(ThemeMode.light, Icons.light_mode_rounded, 'Hell'),
+                      segment(ThemeMode.dark, Icons.dark_mode_rounded, 'Dunkel'),
+                    ],
+                    selected: {theme.mode},
+                    onSelectionChanged: (selection) =>
+                        context.read<ThemeService>().setMode(selection.first),
+                  ),
+                );
+              }),
               const SizedBox(height: 24),
               const Text(
                 'Plan',

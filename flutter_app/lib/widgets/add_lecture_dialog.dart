@@ -168,7 +168,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
         body: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
               TextFormField(
                 controller: _nameCtrl,
@@ -321,6 +321,9 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
 
   Widget _semesterDropdown() => DropdownButtonFormField<String?>(
         initialValue: _semId,
+        // Lets a long entry shorten instead of overflowing on a phone with
+        // a large system font.
+        isExpanded: true,
         dropdownColor: context.cs.surfaceContainerHighest,
         decoration: const InputDecoration(
             labelText: 'Semester',

@@ -85,86 +85,132 @@ class _SemesterSectionState extends State<SemesterSection> {
           child: Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(children: [
-              Icon(_collapsed ? Icons.expand_more : Icons.expand_less,
-                  color: context.cs.onSurfaceVariant, size: 20),
-              const SizedBox(width: 6),
-              _seasonBadge(),
-              const SizedBox(width: 8),
-              Text('${sem.number}. Semester',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(width: 6),
-              Text('${sem.lectures.length} VL',
-                  style: TextStyle(
-                      color: context.cs.onSurfaceVariant, fontSize: 12)),
-              const Spacer(),
-              if (highlight != null) DropHint(highlight),
-              const SizedBox(width: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _miniChip('${sem.totalEcts} ECTS', context.tone(Colors.blue)),
-                  if (sem.passedEcts > 0) ...[
-                    const SizedBox(width: 6),
-                    _miniChip('✓ ${sem.passedEcts}', context.tone(Colors.green)),
-                  ],
-                  if (avg != null) ...[
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: p.plan.weightAverageGradeByEcts
-                          ? 'ECTS-gewichtete Durchschnittsnote'
-                          : 'Ungewichtete Durchschnittsnote',
-                      child:
-                          _miniChip('Ø ${avg.toStringAsFixed(1)}', context.tone(Colors.purple)),
+            child: LayoutBuilder(builder: (context, constraints) {
+              // On a phone the chips go to a second line; in one row they
+              // would push the buttons off the card.
+              final narrow = constraints.maxWidth < 520;
+              final title = [
+                Icon(_collapsed ? Icons.expand_more : Icons.expand_less,
+                    color: context.cs.onSurfaceVariant, size: 20),
+                const SizedBox(width: 6),
+                _seasonBadge(),
+                const SizedBox(width: 8),
+                Expanded(
+                  // Title and count both give way, so the row never overflows.
+                  child: Row(children: [
+                    Flexible(
+                      flex: 3,
+                      child: Text('${sem.number}. Semester',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15)),
                     ),
-                  ],
-                ],
-              ),
-              const SizedBox(width: 12),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: Icon(Icons.add_circle_outline,
-                        color: context.cs.onSurfaceVariant, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
-                    tooltip: 'Veranstaltung hinzufügen',
-                    onPressed: () => _addLecture(context),
-                  ),
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert,
-                        color: context.cs.onSurfaceVariant, size: 20),
-                    tooltip: 'Weitere Optionen',
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
-                    onSelected: (v) {
-                      if (v == 'delete') {
-                        _delete(context);
-                      } else {
-                        p.sortSemesterLectures(sem.id, v);
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                          value: 'date', child: Text('Sortieren: Prüfungsdatum')),
-                      const PopupMenuItem(
-                          value: 'ects', child: Text('Sortieren: ECTS')),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Semester löschen',
-                            style: TextStyle(color: context.cs.error)),
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Text('${sem.lectures.length} VL',
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.clip,
+                            style: TextStyle(
+                                color: context.cs.onSurfaceVariant, fontSize: 12)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ];
+              final chips =
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _miniChip('${sem.totalEcts} ECTS', context.tone(Colors.blue)),
+                      if (sem.passedEcts > 0) ...[
+                        const SizedBox(width: 6),
+                        _miniChip('✓ ${sem.passedEcts}', context.tone(Colors.green)),
+                      ],
+                      if (avg != null) ...[
+                        const SizedBox(width: 6),
+                        Tooltip(
+                          message: p.plan.weightAverageGradeByEcts
+                              ? 'ECTS-gewichtete Durchschnittsnote'
+                              : 'Ungewichtete Durchschnittsnote',
+                          child:
+                              _miniChip('Ø ${avg.toStringAsFixed(1)}', context.tone(Colors.purple)),
+                        ),
+                      ],
+                    ],
+                  );
+              final actions =
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(Icons.add_circle_outline,
+                            color: context.cs.onSurfaceVariant, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                        tooltip: 'Veranstaltung hinzufügen',
+                        onPressed: () => _addLecture(context),
+                      ),
+                      PopupMenuButton<String>(
+                        icon: Icon(Icons.more_vert,
+                            color: context.cs.onSurfaceVariant, size: 20),
+                        tooltip: 'Weitere Optionen',
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                        onSelected: (v) {
+                          if (v == 'delete') {
+                            _delete(context);
+                          } else {
+                            p.sortSemesterLectures(sem.id, v);
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                              value: 'date', child: Text('Sortieren: Prüfungsdatum')),
+                          const PopupMenuItem(
+                              value: 'ects', child: Text('Sortieren: ECTS')),
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Semester löschen',
+                                style: TextStyle(color: context.cs.error)),
+                          ),
+                        ],
                       ),
                     ],
+                  );
+              if (!narrow) {
+                return Row(children: [
+                  ...title,
+                  if (highlight != null) DropHint(highlight),
+                  const SizedBox(width: 8),
+                  chips,
+                  const SizedBox(width: 12),
+                  actions,
+                ]);
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [...title, actions]),
+                  Padding(
+                    // Lines the chips up under the season badge.
+                    padding: const EdgeInsets.only(left: 26, top: 2),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [chips, if (highlight != null) DropHint(highlight)],
+                    ),
                   ),
                 ],
-              ),
-            ]),
+              );
+            }),
           ),
         ),
         if (!_collapsed && sem.lectures.isNotEmpty)

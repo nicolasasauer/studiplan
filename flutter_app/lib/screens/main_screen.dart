@@ -397,7 +397,11 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildHeader(StudyPlanProvider p) => Container(
         color: context.cs.surface,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
+        child: LayoutBuilder(builder: (context, constraints) {
+        // On a phone the row of icons would leave no room for the plan name,
+        // so the less frequent actions move into a menu.
+        final narrow = constraints.maxWidth < _narrowWidth;
+        return Row(
           children: [
             Icon(Icons.school, color: context.tone(Colors.blue), size: 22),
             const SizedBox(width: 8),
@@ -443,67 +447,109 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
             ),
-            if (p.localMode)
-              IconButton(
-                  icon: Icon(Icons.cloud_upload,
-                      color: context.cs.onSurfaceVariant, size: 20),
-                  tooltip: 'Mit Server synchronisieren',
-                  onPressed: () => _shareLocalPlan()),
-            if (p.hasUnsyncedChanges)
-              IconButton(
-                  icon: Icon(Icons.cloud_off, color: context.tone(Colors.amber),
-                      size: 20),
-                  tooltip: 'Änderungen noch nicht auf dem Server. '
-                      'Tippen zum erneuten Senden.',
-                  onPressed: p.refreshPlanFromServer),
-            IconButton(
-                icon: Icon(Icons.download, color: context.cs.onSurfaceVariant,
-                    size: 20),
-                tooltip: 'Importieren',
-                onPressed: () => _import(p)),
-            IconButton(
-                icon: Icon(Icons.upload, color: context.cs.onSurfaceVariant,
-                    size: 20),
-                tooltip: 'Exportieren',
-                onPressed: () => _export(p)),
-            IconButton(
-                icon: Icon(Icons.add_circle_outline,
-                    color: context.cs.onSurfaceVariant, size: 20),
-                tooltip: 'Semester hinzufügen',
-                onPressed: () => p.addSemester()),
-            IconButton(
-                icon: Icon(Icons.settings,
-                    color: context.cs.onSurfaceVariant, size: 20),
-                tooltip: p.plan.isEffectivelyConfigured
-                    ? 'Planeinstellungen'
-                    : 'Plan einrichten',
-                onPressed: () => p.plan.isEffectivelyConfigured
-                    ? _openSettings(p)
-                    : _openSetup(p)),
-            if (p.localMode)
-              Tooltip(
-                message: 'Lokaler Modus – keine Serververbindung',
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(Icons.phone_android,
-                      color: context.tone(Colors.amber), size: 18),
-                ),
-              ),
-            if (!p.localMode)
-              IconButton(
-                icon: Icon(Icons.person_remove,
-                    color: context.tone(Colors.red), size: 20),
-                tooltip: 'Konto löschen',
-                onPressed: () => _deleteAccount(p),
-              ),
-            IconButton(
-                icon: Icon(Icons.logout,
-                    color: context.cs.onSurfaceVariant, size: 20),
-                tooltip: 'Abmelden',
-                onPressed: () => p.logout()),
+            ..._headerActions(p, narrow),
           ],
-        ),
+        );
+        }),
       );
+
+  /// Below this width the header and the stat cards use their compact form.
+  static const _narrowWidth = 600.0;
+
+  List<Widget> _headerActions(StudyPlanProvider p, bool narrow) {
+    final muted = context.cs.onSurfaceVariant;
+    Widget action(IconData icon, String tooltip, VoidCallback onPressed,
+            {Color? color}) =>
+        IconButton(
+            icon: Icon(icon, color: color ?? muted, size: 20),
+            tooltip: tooltip,
+            onPressed: onPressed);
+
+    final unsynced = p.hasUnsyncedChanges
+        ? action(
+            Icons.cloud_off,
+            'Änderungen noch nicht auf dem Server. Tippen zum erneuten Senden.',
+            p.refreshPlanFromServer,
+            color: context.tone(Colors.amber))
+        : null;
+    final settingsTooltip = p.plan.isEffectivelyConfigured
+        ? 'Planeinstellungen'
+        : 'Plan einrichten';
+    void openSettings() => p.plan.isEffectivelyConfigured
+        ? _openSettings(p)
+        : _openSetup(p);
+    final localBadge = p.localMode
+        ? Tooltip(
+            message: 'Lokaler Modus – keine Serververbindung',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(Icons.phone_android,
+                  color: context.tone(Colors.amber), size: 18),
+            ),
+          )
+        : null;
+
+    if (!narrow) {
+      return [
+        if (p.localMode)
+          action(Icons.cloud_upload, 'Mit Server synchronisieren',
+              _shareLocalPlan),
+        ?unsynced,
+        action(Icons.download, 'Importieren', () => _import(p)),
+        action(Icons.upload, 'Exportieren', () => _export(p)),
+        action(Icons.add_circle_outline, 'Semester hinzufügen',
+            () => p.addSemester()),
+        action(Icons.settings, settingsTooltip, openSettings),
+        ?localBadge,
+        if (!p.localMode)
+          action(Icons.person_remove, 'Konto löschen', () => _deleteAccount(p),
+              color: context.tone(Colors.red)),
+        action(Icons.logout, 'Abmelden', () => p.logout()),
+      ];
+    }
+
+    PopupMenuItem<VoidCallback> item(
+            IconData icon, String label, VoidCallback onTap,
+            {Color? color}) =>
+        PopupMenuItem(
+          value: onTap,
+          child: Row(children: [
+            Icon(icon, size: 20, color: color ?? muted),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: color == null ? null : TextStyle(color: color)),
+            ),
+          ]),
+        );
+    return [
+      ?unsynced,
+      ?localBadge,
+      action(Icons.settings, settingsTooltip, openSettings),
+      PopupMenuButton<VoidCallback>(
+        key: const Key('header-menu'),
+        icon: Icon(Icons.more_vert, color: muted, size: 20),
+        tooltip: 'Weitere Aktionen',
+        onSelected: (run) => run(),
+        itemBuilder: (_) => [
+          item(Icons.add_circle_outline, 'Semester hinzufügen',
+              () => p.addSemester()),
+          item(Icons.download, 'Importieren', () => _import(p)),
+          item(Icons.upload, 'Exportieren', () => _export(p)),
+          if (p.localMode)
+            item(Icons.cloud_upload, 'Mit Server synchronisieren',
+                _shareLocalPlan),
+          const PopupMenuDivider(),
+          if (!p.localMode)
+            item(Icons.person_remove, 'Konto löschen', () => _deleteAccount(p),
+                color: context.tone(Colors.red)),
+          item(Icons.logout, 'Abmelden', () => p.logout()),
+        ],
+      ),
+    ];
+  }
 
   Widget _buildBanner() => Container(
         margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -543,13 +589,24 @@ class _MainScreenState extends State<MainScreen> {
     final delta = plan.targetDelta;
     if (total == 0) return const SizedBox.shrink();
     // Same height for all cards, even when one has a progress bar.
+    return LayoutBuilder(builder: (context, constraints) {
+    // Three cards side by side on a phone leave no room for the icon, and
+    // captions need a second line.
+    final compact = constraints.maxWidth < _narrowWidth;
     return IntrinsicHeight(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _statCard(
+          compact: compact,
           key: const Key('stat-planned'),
-          value: target == null ? '$total ECTS' : '$total / $target ECTS',
+          // On a phone the unit would shrink the numbers; the caption
+          // below says ECTS anyway.
+          value: target == null
+              ? '$total ECTS'
+              : compact
+                  ? '$total / $target'
+                  : '$total / $target ECTS',
           label: 'Geplant',
           icon: Icons.event_note_rounded,
           color: Colors.blue,
@@ -564,6 +621,7 @@ class _MainScreenState extends State<MainScreen> {
         ),
         const SizedBox(width: 12),
         _statCard(
+          compact: compact,
           key: const Key('stat-passed'),
           value: '$passed ECTS',
           label: 'Bestanden',
@@ -576,6 +634,7 @@ class _MainScreenState extends State<MainScreen> {
         if (avg != null) ...[
           const SizedBox(width: 12),
           _statCard(
+            compact: compact,
             value: 'Ø ${avg.toStringAsFixed(1)}',
             label: 'Notenschnitt',
             icon: Icons.grade_rounded,
@@ -585,6 +644,7 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ],
     ));
+    });
   }
 
   /// A stat card like Focus Flow's: tinted icon, label, big value, caption.
@@ -597,6 +657,7 @@ class _MainScreenState extends State<MainScreen> {
     String? caption,
     Color? captionColor,
     double? progress,
+    bool compact = false,
   }) {
     final theme = Theme.of(context);
     final accent = context.tone(color);
@@ -611,6 +672,7 @@ class _MainScreenState extends State<MainScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
+                if (!compact) ...[
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
@@ -620,25 +682,34 @@ class _MainScreenState extends State<MainScreen> {
                   child: Icon(icon, size: 16, color: accent),
                 ),
                 const SizedBox(width: 8),
+                ],
                 Expanded(
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium
-                          ?.copyWith(color: muted)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: theme.textTheme.labelMedium
+                            ?.copyWith(color: muted)),
+                  ),
                 ),
               ]),
               const SizedBox(height: 10),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
+                // One line: FittedBox shrinks it instead of letting it wrap,
+                // which would also blow up the intrinsic height of the row.
                 child: Text(value,
+                    maxLines: 1,
+                    softWrap: false,
                     style: theme.textTheme.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w600)),
               ),
               if (caption != null)
                 Text(caption,
-                    maxLines: 1,
+                    maxLines: compact ? 2 : 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: captionColor ?? muted)),

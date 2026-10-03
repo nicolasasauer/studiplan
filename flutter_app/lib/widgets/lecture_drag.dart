@@ -515,6 +515,8 @@ class DropHint extends StatelessWidget {
       ),
       child: Text(
         mismatch ? 'Ablegen · Turnus passt nicht' : 'Hier ablegen',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 11,
           color: color,

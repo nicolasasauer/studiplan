@@ -59,16 +59,34 @@ class _ParkingLotSectionState extends State<ParkingLotSection> {
               Icon(Icons.local_parking,
                   color: context.tone(Colors.orange), size: 18),
               const SizedBox(width: 6),
-              const Text('Parkplatz',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(width: 6),
-              Text('${widget.lectures.length} VL',
-                  style: TextStyle(
-                      color: context.cs.onSurfaceVariant, fontSize: 12)),
-              const Spacer(),
+              // Title and drop hint give way on a phone, so the row fits
+              // even while a lecture is dragged over it.
+              Expanded(
+                // Title and count both give way, so the row never overflows.
+                child: Row(children: [
+                  Flexible(
+                    flex: 3,
+                    child: Text('Parkplatz',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
+                  ),
+                  Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Text('${widget.lectures.length} VL',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.clip,
+                          style: TextStyle(
+                              color: context.cs.onSurfaceVariant, fontSize: 12)),
+                    ),
+                  ),
+                ]),
+              ),
               if (highlight != null) ...[
-                DropHint(highlight),
+                Flexible(child: DropHint(highlight)),
                 const SizedBox(width: 8),
               ],
               if (widget.lectures.isNotEmpty)

@@ -26,6 +26,10 @@ export interface StudyPlan {
   regularSemesters: number;
   startSeason: SemesterSeason;
   isConfigured: boolean;
+  // Set in the Flutter app; carried through here so the web app keeps them.
+  weightAverageGradeByEcts?: boolean;
+  // ECTS the whole degree needs; null when not set.
+  targetEcts?: number | null;
   semesters: Semester[];
   parkingLot: Lecture[];
 }

@@ -1,12 +1,21 @@
 import 'lecture.dart';
 import 'semester.dart';
 
+/// Caption for [StudyPlan.targetDelta]: how far the plan is from the target.
+String targetDeltaLabel(int delta) {
+  if (delta < 0) return 'noch ${-delta} ECTS offen';
+  if (delta == 0) return 'Ziel genau erreicht';
+  return '$delta ECTS über dem Ziel';
+}
+
 class StudyPlan {
   String planName;
   int regularSemesters;
   String startSeason; // 'winter' | 'summer'
   bool isConfigured;
   bool weightAverageGradeByEcts;
+  /// ECTS the whole degree needs (e.g. 180), or null when not set.
+  int? targetEcts;
   List<Semester> semesters;
   List<Lecture> parkingLot;
 
@@ -16,6 +25,7 @@ class StudyPlan {
     this.startSeason = 'winter',
     this.isConfigured = false,
     this.weightAverageGradeByEcts = false,
+    this.targetEcts,
     List<Semester>? semesters,
     List<Lecture>? parkingLot,
   })  : semesters = semesters ?? [],
@@ -63,6 +73,7 @@ class StudyPlan {
           json['weightAverageGradeByEcts'] is bool
               ? json['weightAverageGradeByEcts'] as bool
               : false,
+      targetEcts: normalizeTargetEcts(json['targetEcts']),
       semesters: semesters,
       parkingLot: parkingLot,
     );
@@ -74,9 +85,35 @@ class StudyPlan {
         'startSeason': startSeason,
         'isConfigured': isConfigured,
         'weightAverageGradeByEcts': weightAverageGradeByEcts,
+        // Left out when unset; older app versions ignore the key either way.
+        if (targetEcts != null) 'targetEcts': targetEcts,
         'semesters': semesters.map((s) => s.toJson()).toList(),
         'parkingLot': parkingLot.map((l) => l.toJson()).toList(),
       };
+
+  static const maxTargetEcts = 999;
+
+  /// A stored target as a whole number in 1..[maxTargetEcts], else null.
+  static int? normalizeTargetEcts(Object? value) {
+    if (value is! num || !value.isFinite || value < 1) return null;
+    return value.floor().clamp(1, maxTargetEcts);
+  }
+
+  /// Parses what the user typed: null for an empty field, the number for a
+  /// valid one. Throws [FormatException] with a message for anything else.
+  static int? parseTargetEcts(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+    final value = int.tryParse(trimmed);
+    if (value == null || value < 1 || value > maxTargetEcts) {
+      throw const FormatException('Bitte eine Zahl von 1 bis 999 eingeben');
+    }
+    return value;
+  }
+
+  /// Planned ECTS minus the target: negative while ECTS are still missing,
+  /// positive when more is planned than needed. Null without a target.
+  int? get targetDelta => targetEcts == null ? null : totalEcts - targetEcts!;
 
   bool get isEffectivelyConfigured =>
       isConfigured || semesters.isNotEmpty || parkingLot.isNotEmpty;

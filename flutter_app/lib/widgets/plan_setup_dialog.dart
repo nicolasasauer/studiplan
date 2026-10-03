@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import '../models/study_plan.dart';
 import '../theme/app_theme.dart';
+import 'target_ects_field.dart';
 
 class PlanSetupDialog extends StatefulWidget {
   final String initialName;
   final int initialSemesters;
   final String initialSeason;
-  final Future<void> Function(String name, int semesters, String season)
+  final Future<void> Function(
+          String name, int semesters, String season, int? targetEcts)
       onSave;
 
   const PlanSetupDialog({
@@ -23,6 +26,7 @@ class PlanSetupDialog extends StatefulWidget {
 class _PlanSetupDialogState extends State<PlanSetupDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
+  final _targetCtrl = TextEditingController();
   late int _semesters;
   late String _season;
   bool _saving = false;
@@ -38,6 +42,7 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _targetCtrl.dispose();
     super.dispose();
   }
 
@@ -51,6 +56,7 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
             : _nameCtrl.text.trim(),
         _semesters,
         _season,
+        StudyPlan.parseTargetEcts(_targetCtrl.text),
       );
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
     } finally {
@@ -66,7 +72,7 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
           borderRadius: BorderRadius.circular(16)),
       insetPadding:
           const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
@@ -79,7 +85,8 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
                       fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Text(
-                  'Lege Planname und Regelstudienzeit fest.',
+                  'Lege Planname, Regelstudienzeit und auf Wunsch die '
+                  'ECTS fürs ganze Studium fest.',
                   style:
                       TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13)),
               const SizedBox(height: 20),
@@ -150,6 +157,8 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
                   ),
                 ),
               ]),
+              const SizedBox(height: 16),
+              TargetEctsField(controller: _targetCtrl, enabled: !_saving),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,

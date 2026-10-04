@@ -65,9 +65,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('waits for initialization before showing the login screen', (
+  testWidgets('waits for initialization, then opens a new plan locally', (
     tester,
   ) async {
+    // Ein früherer lokaler Benutzer ohne Plan: Es gibt nichts zu übernehmen,
+    // die App legt einen neuen Plan an und fragt nach den Eckdaten.
     final storage = _DelayedStorageService(
       localMode: true,
       localUsers: const [LocalUserAccount(username: 'Nico')],
@@ -89,8 +91,9 @@ void main() {
     storage.initGate.complete();
     await tester.pumpAndSettle();
 
-    expect(find.text('Lokal anmelden'), findsOneWidget);
-    expect(find.text('Nico'), findsOneWidget);
+    expect(provider.isLoggedIn, isTrue);
+    expect(find.text('Anmelden'), findsNothing);
+    expect(find.text('Plan starten'), findsOneWidget);
 
     provider.dispose();
   });

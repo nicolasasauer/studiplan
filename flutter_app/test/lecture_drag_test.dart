@@ -24,7 +24,6 @@ Future<StudyPlanProvider> _plan({int semesters = 3}) async {
   final p = StudyPlanProvider();
   await p.initialize();
   await p.enterLocalMode();
-  await p.createUser('Studi', null);
   await p.initializePlan('Plan', semesters, 'winter');
   final s = p.plan.semesters;
   await p.addLecture(_lecture('Mathe', season: 'winter', ects: 8), s[0].id);

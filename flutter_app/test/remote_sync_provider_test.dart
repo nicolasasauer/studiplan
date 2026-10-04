@@ -116,14 +116,12 @@ void main() {
     final a = StudyPlanProvider();
     await a.initialize();
     await a.enterLocalMode();
-    await a.createUser('A', null);
     await a.initializePlan('Plan', 3, 'winter');
 
     SharedPreferences.setMockInitialValues({});
     final b = StudyPlanProvider();
     await b.initialize();
     await b.enterLocalMode();
-    await b.createUser('B', null);
     await b.initializePlan('Plan', 3, 'winter');
 
     final idsA = a.plan.semesters.map((s) => s.id).toSet();

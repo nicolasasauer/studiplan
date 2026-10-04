@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/archived_local_plan.dart';
 import '../providers/study_plan_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/server_settings_dialog.dart';
 import '../theme/app_theme.dart';
 
+/// Anmeldung am Server. Im lokalen Modus öffnet die App direkt den Plan,
+/// diese Seite erscheint nur im Servermodus.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -15,7 +16,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   List<String> _users = [];
-  List<ArchivedLocalPlan> _archive = [];
   bool _loadingUsers = false;
   String? _fetchError;
   bool _showCreate = false;
@@ -45,10 +45,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _fetchUsers() async {
     final provider = context.read<StudyPlanProvider>();
-    if (!provider.localMode && provider.baseUrl.isEmpty) {
+    if (provider.baseUrl.isEmpty) {
       setState(() {
         _users = [];
-        _archive = [];
         _fetchError =
             'Server-URL nicht konfiguriert. Bitte Einstellungen prüfen.';
       });
@@ -62,13 +61,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final result = await provider.getUsersResult();
-      final archive = provider.localMode
-          ? await provider.loadLocalArchive()
-          : <ArchivedLocalPlan>[];
       if (mounted) {
         setState(() {
           _users = result.users;
-          _archive = archive;
           _fetchError = result.error;
         });
       }
@@ -114,50 +109,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _restoreArchived(ArchivedLocalPlan entry) async {
-    final provider = context.read<StudyPlanProvider>();
-    final name = await provider.restoreArchivedPlan(entry.id);
-    if (!mounted) return;
-    if (name == null) {
-      _showError('Archiveintrag nicht gefunden');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('"$name" wiederhergestellt'),
-        backgroundColor: context.tone(Colors.green),
-      ));
-    }
-    await _fetchUsers();
-  }
-
-  Future<void> _deleteArchived(ArchivedLocalPlan entry) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Archivierten Plan löschen?'),
-        content: Text(
-          'Der archivierte Plan von "${entry.username}" wird von diesem Gerät '
-          'gelöscht. Die Kopie auf dem Server bleibt davon unberührt.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: context.cs.error,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Löschen'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await context.read<StudyPlanProvider>().deleteArchivedPlan(entry.id);
-    await _fetchUsers();
-  }
-
   Future<void> _loginUser(String username) async {
     final provider = context.read<StudyPlanProvider>();
     final result = await provider.login(username, null);
@@ -200,9 +151,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _switchingMode = true);
     try {
       await context.read<StudyPlanProvider>().enterLocalMode();
-      if (!mounted) return;
-      _resetLoginState();
-      await _fetchUsers();
     } catch (e) {
       if (mounted) {
         _showError('Fehler beim Umschalten in lokalen Modus: $e');
@@ -210,36 +158,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _switchingMode = false);
     }
-  }
-
-  Future<void> _useServerMode() async {
-    setState(() => _switchingMode = true);
-    try {
-      await context.read<StudyPlanProvider>().leaveLocalMode();
-      if (!mounted) return;
-      _resetLoginState();
-      await _fetchUsers();
-    } catch (e) {
-      if (mounted) {
-        _showError('Fehler beim Umschalten in Server-Modus: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _switchingMode = false);
-    }
-  }
-
-  void _resetLoginState() {
-    setState(() {
-      _users = [];
-      _fetchError = null;
-      _showCreate = false;
-      _pendingUser = null;
-      _needsPassword = false;
-      _switchingMode = false;
-      _pwCtrl.clear();
-      _newUserCtrl.clear();
-      _newPwCtrl.clear();
-    });
   }
 
   void _showError(String msg) {
@@ -295,23 +213,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     if (_switchingMode)
                       const SizedBox(height: 16),
-                    if (!provider.localMode && provider.baseUrl.isEmpty)
-                      _buildNoBanner(),
-                    if (!provider.localMode && provider.baseUrl.isEmpty)
-                      const SizedBox(height: 16),
+                    if (provider.baseUrl.isEmpty) _buildNoBanner(),
+                    if (provider.baseUrl.isEmpty) const SizedBox(height: 16),
                     if (_needsPassword && _pendingUser != null)
                       _buildPasswordCard(provider)
                     else if (_showCreate)
                       _buildCreateCard(provider)
                     else
                       _buildUserListCard(provider, isBusy),
-                    if (provider.localMode &&
-                        _archive.isNotEmpty &&
-                        !_showCreate &&
-                        !_needsPassword) ...[
-                      const SizedBox(height: 12),
-                      _buildArchiveCard(isBusy),
-                    ],
                     const SizedBox(height: 12),
                     _buildLocalModeButton(provider),
                   ],
@@ -378,23 +287,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLocalModeButton(StudyPlanProvider provider) =>
       OutlinedButton.icon(
-        icon: Icon(
-          provider.localMode ? Icons.cloud_outlined : Icons.phone_android,
-        ),
-        label: Text(
-          provider.localMode
-              ? 'Server verwenden'
-              : 'Lokal verwenden (kein Server)',
-        ),
+        icon: const Icon(Icons.phone_android),
+        label: const Text('Lokal verwenden (kein Server)'),
         style: OutlinedButton.styleFrom(
           foregroundColor: context.cs.onSurfaceVariant,
           side: BorderSide(color: context.cs.outline),
         ),
-        onPressed: provider.isLoading || _switchingMode
-            ? null
-            : provider.localMode
-                ? _useServerMode
-                : _useLocally,
+        onPressed: provider.isLoading || _switchingMode ? null : _useLocally,
       );
 
   Widget _buildUserListCard(StudyPlanProvider provider, bool isBusy) => Card(
@@ -403,16 +302,14 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                provider.localMode ? 'Lokal anmelden' : 'Anmelden',
+              const Text(
+                'Anmelden',
                 style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                provider.localMode
-                    ? 'Wähle einen lokalen Benutzer oder erstelle einen neuen.'
-                    : 'Wähle einen Benutzer oder erstelle einen neuen.',
+                'Wähle einen Benutzer oder erstelle einen neuen.',
                 style: TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13),
               ),
               const SizedBox(height: 16),
@@ -422,11 +319,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 _buildFetchError(_fetchError!)
               else if (_users.isEmpty)
                 Text(
-                  provider.localMode
-                      ? 'Noch keine lokalen Benutzer vorhanden.'
-                      : provider.baseUrl.isNotEmpty
-                          ? 'Keine Benutzer vorhanden.'
-                          : 'Kein Server konfiguriert.',
+                  provider.baseUrl.isNotEmpty
+                      ? 'Keine Benutzer vorhanden.'
+                      : 'Kein Server konfiguriert.',
                   style: TextStyle(color: context.cs.onSurfaceVariant),
                 )
               else
@@ -471,13 +366,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.person_add),
-                  label: Text(
-                    provider.localMode
-                        ? 'Neuen lokalen Benutzer erstellen'
-                        : 'Neuen Benutzer erstellen',
-                  ),
-                  onPressed: !isBusy &&
-                          (provider.localMode || provider.baseUrl.isNotEmpty)
+                  label: const Text('Neuen Benutzer erstellen'),
+                  onPressed: !isBusy && provider.baseUrl.isNotEmpty
                       ? () => setState(() => _showCreate = true)
                       : null,
                 ),
@@ -486,67 +376,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
-
-  Widget _buildArchiveCard(bool isBusy) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Archiv',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Lokale Pläne, die zur Synchronisierung freigegeben wurden.',
-                style: TextStyle(color: context.cs.onSurfaceVariant, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              for (final entry in _archive)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.inventory_2_outlined,
-                      color: context.cs.onSurfaceVariant),
-                  title: Text(entry.username),
-                  subtitle: Text(
-                    [
-                      entry.plan.planName,
-                      'archiviert am ${_formatDate(entry.archivedAt)}',
-                      if (entry.sharedAs != null)
-                        'Server-Konto ${entry.sharedAs}',
-                    ].join(' · '),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.unarchive_outlined, size: 20),
-                        tooltip: 'Wiederherstellen',
-                        onPressed:
-                            isBusy ? null : () => _restoreArchived(entry),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete_outline,
-                            color: context.tone(Colors.red), size: 20),
-                        tooltip: 'Archivierten Plan löschen',
-                        onPressed:
-                            isBusy ? null : () => _deleteArchived(entry),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      );
-
-  static String _formatDate(DateTime date) {
-    final d = date.toLocal();
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${two(d.day)}.${two(d.month)}.${d.year}';
-  }
 
   Widget _buildFetchError(String error) => Container(
         padding: const EdgeInsets.all(10),
@@ -635,11 +464,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: const Icon(Icons.arrow_back),
                     onPressed: () => setState(() => _showCreate = false),
                   ),
-                  Text(
-                    provider.localMode
-                        ? 'Neuen lokalen Benutzer erstellen'
-                        : 'Neuen Benutzer erstellen',
-                    style: const TextStyle(
+                  const Text(
+                    'Neuen Benutzer erstellen',
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -657,10 +484,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _newPwCtrl,
                 obscureText: _obscureNewPw,
                 decoration: InputDecoration(
-                  labelText: provider.localMode
-                      ? 'Passwort (optional)'
-                      : 'Passwort * (mindestens '
-                          '${ApiService.minPasswordLength} Zeichen)',
+                  labelText: 'Passwort * (mindestens '
+                      '${ApiService.minPasswordLength} Zeichen)',
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureNewPw ? Icons.visibility : Icons.visibility_off,

@@ -139,6 +139,9 @@ class _PlanSetupDialogState extends State<PlanSetupDialog> {
                               color: context.cs.onSurfaceVariant, fontSize: 13)),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
+                        // Langer Text wird gekürzt statt überzulaufen
+                        // (schmale Handys, große Systemschrift).
+                        isExpanded: true,
                         initialValue: _season,
                         dropdownColor: context.cs.surfaceContainerHighest,
                         decoration: const InputDecoration(isDense: true),

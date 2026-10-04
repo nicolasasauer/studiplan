@@ -9,6 +9,8 @@ String targetDeltaLabel(int delta) {
 }
 
 class StudyPlan {
+  static const defaultPlanName = 'Mein Studienplan';
+
   String planName;
   int regularSemesters;
   String startSeason; // 'winter' | 'summer'
@@ -20,7 +22,7 @@ class StudyPlan {
   List<Lecture> parkingLot;
 
   StudyPlan({
-    this.planName = 'Mein Studienplan',
+    this.planName = defaultPlanName,
     this.regularSemesters = 6,
     this.startSeason = 'winter',
     this.isConfigured = false,
@@ -35,7 +37,7 @@ class StudyPlan {
     final planName = json['planName'] is String &&
             (json['planName'] as String).trim().isNotEmpty
         ? (json['planName'] as String).trim()
-        : 'Mein Studienplan';
+        : defaultPlanName;
     final regularSemesters = json['regularSemesters'] is num
         ? (json['regularSemesters'] as num).toInt()
         : 6;

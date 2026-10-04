@@ -12,6 +12,9 @@ interface UserSelectionProps {
   onLogin: (username: string, token: string) => void;
 }
 
+// Wie im Server (server/index.js): Server-Konten brauchen ein Passwort.
+const MIN_PASSWORD_LENGTH = 8;
+
 type View = 'select' | 'create';
 type PasswordMode = 'login' | 'delete';
 
@@ -127,6 +130,7 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
         requiresPassword?: boolean;
         username?: string;
         token?: string;
+        error?: string;
       };
 
       if (res.ok && data.token) {
@@ -140,7 +144,7 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
         return;
       }
 
-      setError('Fehler beim Anmelden');
+      setError(data.error ?? 'Fehler beim Anmelden');
     } catch (err) {
       const errorMsg =
         err instanceof Error && err.name === 'AbortError'
@@ -209,10 +213,10 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const body: Record<string, string> = { username: newUsername.trim() };
-      if (newPassword.length > 0) {
-        body.password = newPassword;
-      }
+      const body: Record<string, string> = {
+        username: newUsername.trim(),
+        password: newPassword,
+      };
 
       const res = await fetchWithTimeout('/api/users', {
         method: 'POST',
@@ -460,7 +464,9 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-300">
                 Passwort{' '}
-                <span className="font-normal text-slate-500">(optional)</span>
+                <span className="font-normal text-slate-500">
+                  (mindestens {MIN_PASSWORD_LENGTH} Zeichen)
+                </span>
               </label>
               <div className="relative">
                 <input
@@ -468,8 +474,10 @@ export const UserSelection: React.FC<UserSelectionProps> = ({ onLogin }) => {
                   type={showNewPassword ? 'text' : 'password'}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Leer lassen fuer kein Passwort"
+                  placeholder="Passwort fuer dieses Konto"
+                  minLength={MIN_PASSWORD_LENGTH}
                   maxLength={128}
+                  required
                   disabled={loading}
                 />
                 <button

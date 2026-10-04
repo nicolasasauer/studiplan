@@ -9,88 +9,156 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('StudyPlanProvider local mode', () {
-    test('creates, protects and restores local users without a server', () async {
+    test('opens an empty plan on first start, without any account', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = StudyPlanProvider();
-
       await provider.initialize();
-      await provider.enterLocalMode();
 
       expect(provider.localMode, isTrue);
-      expect(provider.isLoggedIn, isFalse);
-
-      final createResult = await provider.createUser('Alice', 'secret');
-      expect(createResult, isNull);
-      expect(provider.currentUser, 'Alice');
-
-      await provider.initializePlan('Alice Plan', 6, 'winter');
-      await provider.logout();
-
-      expect(await provider.login('Alice', null), 'REQUIRES_PASSWORD');
-      expect(await provider.login('Alice', 'secret'), isNull);
-      expect(provider.currentUser, 'Alice');
-      expect(provider.plan.planName, 'Alice Plan');
-
+      expect(provider.isLoggedIn, isTrue);
+      expect(provider.localPlans, hasLength(1));
+      expect(provider.plan.isEffectivelyConfigured, isFalse);
       provider.dispose();
     });
 
-    test('keeps the selected local mode after logout', () async {
+    test('creates, switches, renames and restores plans', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = StudyPlanProvider();
-
       await provider.initialize();
-      await provider.enterLocalMode();
-      await provider.createUser('Bob', null);
+      await provider.initializePlan('Bachelor', 6, 'winter');
+      final bachelor = provider.currentLocalPlanId!;
 
-      await provider.logout();
-
-      expect(provider.localMode, isTrue);
-      expect(provider.isLoggedIn, isFalse);
-
-      final restartedProvider = StudyPlanProvider();
-      await restartedProvider.initialize();
-
-      expect(restartedProvider.localMode, isTrue);
-      expect(restartedProvider.isLoggedIn, isFalse);
-
-      restartedProvider.dispose();
-      provider.dispose();
-    });
-
-    test('restores a local plan after app restart and local re-login', () async {
-      SharedPreferences.setMockInitialValues({});
-      final provider = StudyPlanProvider();
-
-      await provider.initialize();
-      await provider.enterLocalMode();
-      await provider.createUser('Clara', 'pw');
-      await provider.initializePlan('Clara Plan', 8, 'summer');
+      final master = await provider.createLocalPlan();
+      expect(provider.currentLocalPlanId, master);
+      expect(provider.plan.isEffectivelyConfigured, isFalse);
+      await provider.initializePlan('Master', 4, 'summer');
       await provider.updateGradeWeighting(true);
-      await provider.logout();
+      expect(provider.localPlans.map((p) => p.name), ['Bachelor', 'Master']);
+
+      await provider.switchLocalPlan(bachelor);
+      expect(provider.plan.planName, 'Bachelor');
+      await provider.updatePlanName('Informatik B.Sc.');
+      expect(provider.localPlans.map((p) => p.name),
+          ['Informatik B.Sc.', 'Master']);
+
+      await provider.switchLocalPlan(master);
       provider.dispose();
 
-      final restartedProvider = StudyPlanProvider();
-      await restartedProvider.initialize();
-
-      expect(restartedProvider.localMode, isTrue);
-      expect(restartedProvider.isLoggedIn, isFalse);
-      expect(await restartedProvider.login('Clara', 'pw'), isNull);
-      expect(restartedProvider.plan.planName, 'Clara Plan');
-      expect(restartedProvider.plan.regularSemesters, 8);
-      expect(restartedProvider.plan.startSeason, 'summer');
-      expect(restartedProvider.plan.weightAverageGradeByEcts, isTrue);
-
-      restartedProvider.dispose();
+      // Nach dem Neustart: beide Pläne, der zuletzt geöffnete ist offen.
+      final restarted = StudyPlanProvider();
+      await restarted.initialize();
+      expect(restarted.localPlans.map((p) => p.name),
+          ['Informatik B.Sc.', 'Master']);
+      expect(restarted.currentLocalPlanId, master);
+      expect(restarted.plan.regularSemesters, 4);
+      expect(restarted.plan.startSeason, 'summer');
+      expect(restarted.plan.weightAverageGradeByEcts, isTrue);
+      restarted.dispose();
     });
 
-    test('migrates a legacy local plan to the first real local user', () async {
+    test('deletes plans and never leaves the app without one', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = StudyPlanProvider();
+      await provider.initialize();
+      await provider.initializePlan('A', 2, 'winter');
+      final a = provider.currentLocalPlanId!;
+      final b = await provider.createLocalPlan();
+      await provider.initializePlan('B', 2, 'winter');
+
+      await provider.deleteLocalPlan(b);
+      expect(provider.currentLocalPlanId, a);
+      expect(provider.plan.planName, 'A');
+      expect(provider.localPlans.map((p) => p.id), [a]);
+
+      await provider.deleteLocalPlan(a);
+      expect(provider.localPlans, hasLength(1));
+      expect(provider.currentLocalPlanId, isNot(a));
+      expect(provider.plan.isEffectivelyConfigured, isFalse);
+      provider.dispose();
+
+      final restarted = StudyPlanProvider();
+      await restarted.initialize();
+      expect(restarted.localPlans, hasLength(1));
+      restarted.dispose();
+    });
+
+    test('imports a plan next to the existing ones', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = StudyPlanProvider();
+      await provider.initialize();
+      await provider.initializePlan('Vorhanden', 2, 'winter');
+
+      final err = await provider.importJson(jsonEncode(
+          StudyPlan(planName: 'Importiert', isConfigured: true).toJson()));
+
+      expect(err, isNull);
+      expect(provider.plan.planName, 'Importiert');
+      expect(provider.localPlans.map((p) => p.name),
+          ['Vorhanden', 'Importiert']);
+      provider.dispose();
+    });
+
+    test('turns former local users into plans', () async {
+      final alice = StudyPlan(
+          planName: 'Informatik B.Sc.', isConfigured: true, regularSemesters: 7);
+      // Mit Standardnamen: der Benutzername wird zum Plannamen.
+      final bob = StudyPlan(isConfigured: true);
+      final archived = StudyPlan(planName: 'Freigegeben', isConfigured: true);
+      SharedPreferences.setMockInitialValues({
+        'sp_local_mode': true,
+        'sp_user': 'Bob',
+        'sp_token': 'local-session:Bob',
+        'sp_local_users': jsonEncode([
+          {'username': 'Alice', 'passwordHash': 'salt:hash'},
+          {'username': 'Bob', 'passwordHash': null},
+          {'username': 'Leer', 'passwordHash': null},
+        ]),
+        'sp_plan_local_${base64Url.encode(utf8.encode('Alice'))}':
+            jsonEncode(alice.toJson()),
+        'sp_plan_local_${base64Url.encode(utf8.encode('Bob'))}':
+            jsonEncode(bob.toJson()),
+        'sp_local_archive': jsonEncode([
+          {
+            'id': 'x',
+            'username': 'Alt',
+            'archivedAt': '2026-10-01T10:00:00Z',
+            'plan': archived.toJson(),
+          },
+        ]),
+      });
+
+      final provider = StudyPlanProvider();
+      await provider.initialize();
+
+      expect(provider.isLoggedIn, isTrue);
+      expect(provider.localPlans.map((p) => p.name),
+          ['Informatik B.Sc.', 'Bob', 'Freigegeben']);
+      // Der zuletzt angemeldete Benutzer wird zum geöffneten Plan.
+      expect(provider.plan.planName, 'Bob');
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('sp_local_users'), isNull);
+      expect(prefs.getString('sp_local_archive'), isNull);
+      expect(prefs.getString('sp_user'), isNull);
+      expect(
+          prefs.getKeys().where((k) => k.startsWith('sp_plan_local_')), isEmpty);
+      provider.dispose();
+
+      // Die Umstellung läuft nur einmal.
+      final restarted = StudyPlanProvider();
+      await restarted.initialize();
+      expect(restarted.localPlans, hasLength(3));
+      expect(restarted.plan.planName, 'Bob');
+      restarted.dispose();
+    });
+
+    test('turns a very old single local plan into a plan', () async {
       final legacyPlan = StudyPlan(
         planName: 'Alter Offline-Plan',
         regularSemesters: 7,
         startSeason: 'summer',
         isConfigured: true,
       );
-
       SharedPreferences.setMockInitialValues({
         'sp_local_mode': true,
         'sp_plan': jsonEncode(legacyPlan.toJson()),
@@ -99,45 +167,22 @@ void main() {
       final provider = StudyPlanProvider();
       await provider.initialize();
 
-      expect(provider.localMode, isTrue);
-      expect(provider.isLoggedIn, isFalse);
-      expect(await provider.getUsers(), isEmpty);
-
-      expect(await provider.createUser('Alice', null), isNull);
-      expect(provider.currentUser, 'Alice');
-      expect(provider.plan.planName, 'Alter Offline-Plan');
-      expect(await provider.getUsers(), ['Alice']);
-
+      expect(provider.localPlans.map((p) => p.name), ['Alter Offline-Plan']);
+      expect(provider.plan.regularSemesters, 7);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('sp_plan'), isNull);
       provider.dispose();
     });
 
-    test('re-homes the old autogenerated lokal user to a real local account', () async {
-      final legacyPlan = StudyPlan(
-        planName: 'Lokaler Altbestand',
-        regularSemesters: 6,
-        startSeason: 'winter',
-        isConfigured: true,
-      );
-
-      SharedPreferences.setMockInitialValues({
-        'sp_local_mode': true,
-        'sp_user': 'lokal',
-        'sp_token': 'local-session:lokal',
-        'sp_local_users': '[{"username":"lokal","passwordHash":null}]',
-        'sp_plan_local_bG9rYWw=': jsonEncode(legacyPlan.toJson()),
-      });
-
+    test('switching from the server opens the local plans', () async {
+      SharedPreferences.setMockInitialValues({'sp_local_mode': false});
       final provider = StudyPlanProvider();
       await provider.initialize();
-
-      expect(provider.localMode, isTrue);
       expect(provider.isLoggedIn, isFalse);
-      expect(await provider.getUsers(), isEmpty);
 
-      expect(await provider.createUser('Mia', null), isNull);
-      expect(provider.currentUser, 'Mia');
-      expect(provider.plan.planName, 'Lokaler Altbestand');
-
+      await provider.enterLocalMode();
+      expect(provider.isLoggedIn, isTrue);
+      expect(provider.localPlans, hasLength(1));
       provider.dispose();
     });
 
@@ -147,7 +192,6 @@ void main() {
 
       await provider.initialize();
       await provider.enterLocalMode();
-      await provider.createUser('Dana', null);
       await provider.initializePlan('Dana Plan', 2, 'winter');
       final firstId = provider.plan.semesters[0].id;
       final secondId = provider.plan.semesters[1].id;
@@ -191,7 +235,6 @@ void main() {
 
       await provider.initialize();
       await provider.enterLocalMode();
-      await provider.createUser('Elli', null);
 
       final err = await provider.importJson(jsonEncode({
         'planName': 'Legacy',
@@ -223,35 +266,6 @@ void main() {
       await provider.toggleLecturePassed('l1', null);
 
       expect(provider.plan.semesters.first.lectures.first.passed, isTrue);
-
-      provider.dispose();
-    });
-
-    test('removes the old autogenerated lokal user when real users exist', () async {
-      final generatedPlan = StudyPlan(
-        planName: 'Generated',
-        regularSemesters: 6,
-        startSeason: 'winter',
-        isConfigured: true,
-      );
-
-      SharedPreferences.setMockInitialValues({
-        'sp_local_mode': true,
-        'sp_user': 'lokal',
-        'sp_token': 'local-session:lokal',
-        'sp_local_users':
-            '[{"username":"lokal","passwordHash":null},{"username":"Nico","passwordHash":null}]',
-        'sp_plan_local_bG9rYWw=': jsonEncode(generatedPlan.toJson()),
-      });
-
-      final provider = StudyPlanProvider();
-      await provider.initialize();
-      final prefs = await SharedPreferences.getInstance();
-
-      expect(provider.localMode, isTrue);
-      expect(provider.isLoggedIn, isFalse);
-      expect(await provider.getUsers(), ['Nico']);
-      expect(prefs.getString('sp_plan_local_bG9rYWw='), isNull);
 
       provider.dispose();
     });

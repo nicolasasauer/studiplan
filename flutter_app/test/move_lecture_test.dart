@@ -18,7 +18,6 @@ Future<StudyPlanProvider> _provider() async {
   final provider = StudyPlanProvider();
   await provider.initialize();
   await provider.enterLocalMode();
-  await provider.createUser('Studi', null);
   await provider.initializePlan('Plan', 3, 'winter');
   final s = provider.plan.semesters;
   await provider.addLecture(_lecture('a'), s[0].id);

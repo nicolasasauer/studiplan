@@ -16,6 +16,7 @@ import '../widgets/plan_setup_dialog.dart';
 import '../widgets/plan_settings_dialog.dart';
 import '../widgets/plan_transfer.dart';
 import '../widgets/semester_section.dart';
+import '../widgets/plan_list_dialog.dart';
 import '../widgets/share_local_plan_dialog.dart';
 import '../theme/app_theme.dart';
 
@@ -151,6 +152,11 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _openPlanList() => showDialog<void>(
+        context: context,
+        builder: (_) => const PlanListDialog(),
+      );
+
   Future<void> _shareLocalPlan() async {
     final shared = await showDialog<bool>(
       context: context,
@@ -160,7 +166,7 @@ class _MainScreenState extends State<MainScreen> {
     if (shared == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Plan wird jetzt mit dem Server synchronisiert. '
-            'Die lokale Kopie liegt im Archiv.'),
+            'Die lokale Kopie bleibt im lokalen Modus erhalten.'),
         backgroundColor: context.tone(Colors.green),
       ));
     }
@@ -492,6 +498,8 @@ class _MainScreenState extends State<MainScreen> {
     if (!narrow) {
       return [
         if (p.localMode)
+          action(Icons.folder_copy_outlined, 'Pläne', _openPlanList),
+        if (p.localMode)
           action(Icons.cloud_upload, 'Mit Server synchronisieren',
               _shareLocalPlan),
         ?unsynced,
@@ -504,7 +512,8 @@ class _MainScreenState extends State<MainScreen> {
         if (!p.localMode)
           action(Icons.person_remove, 'Konto löschen', () => _deleteAccount(p),
               color: context.tone(Colors.red)),
-        action(Icons.logout, 'Abmelden', () => p.logout()),
+        if (!p.localMode)
+          action(Icons.logout, 'Abmelden', () => p.logout()),
       ];
     }
 
@@ -534,6 +543,8 @@ class _MainScreenState extends State<MainScreen> {
         tooltip: 'Weitere Aktionen',
         onSelected: (run) => run(),
         itemBuilder: (_) => [
+          if (p.localMode)
+            item(Icons.folder_copy_outlined, 'Pläne', _openPlanList),
           item(Icons.add_circle_outline, 'Semester hinzufügen',
               () => p.addSemester()),
           item(Icons.download, 'Importieren', () => _import(p)),
@@ -541,11 +552,12 @@ class _MainScreenState extends State<MainScreen> {
           if (p.localMode)
             item(Icons.cloud_upload, 'Mit Server synchronisieren',
                 _shareLocalPlan),
-          const PopupMenuDivider(),
-          if (!p.localMode)
+          if (!p.localMode) ...[
+            const PopupMenuDivider(),
             item(Icons.person_remove, 'Konto löschen', () => _deleteAccount(p),
                 color: context.tone(Colors.red)),
-          item(Icons.logout, 'Abmelden', () => p.logout()),
+            item(Icons.logout, 'Abmelden', () => p.logout()),
+          ],
         ],
       ),
     ];

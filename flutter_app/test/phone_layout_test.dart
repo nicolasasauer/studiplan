@@ -21,7 +21,6 @@ Future<StudyPlanProvider> _plan() async {
   final p = StudyPlanProvider();
   await p.initialize();
   await p.enterLocalMode();
-  await p.createUser('Studi', null);
   await p.initializePlan('Mechatronik B.Sc.', 6, 'winter', targetEcts: 180);
   final s = p.plan.semesters;
   await p.addLecture(_lecture('Höhere Mathematik 1', 8, grade: 2.3), s[0].id);
@@ -141,7 +140,7 @@ void main() {
       'Importieren',
       'Exportieren',
       'Mit Server synchronisieren',
-      'Abmelden',
+      'Pläne',
     ]) {
       expect(find.text(label), findsOneWidget, reason: label);
     }

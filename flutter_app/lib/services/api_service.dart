@@ -12,6 +12,15 @@ class ApiResult<T> {
 }
 
 class ApiService {
+  /// Mindestlänge für Passwörter von Server-Konten (wie im Server).
+  static const minPasswordLength = 8;
+
+  /// Fehlermeldung zu einem Passwort für ein neues Server-Konto oder `null`.
+  static String? checkNewPassword(String? password) =>
+      password == null || password.length < minPasswordLength
+          ? 'Passwort erforderlich (mindestens $minPasswordLength Zeichen)'
+          : null;
+
   final String baseUrl;
 
   const ApiService(this.baseUrl);
@@ -59,6 +68,15 @@ class ApiService {
         } catch (_) {}
         return const ApiResult(error: 'Falsches Passwort');
       }
+      // 403: altes Konto ohne Passwort, 429: zu viele Versuche. Die Meldung
+      // des Servers erklärt, was zu tun ist.
+      try {
+        final j = jsonDecode(res.body) as Map<String, dynamic>;
+        final error = j['error'];
+        if (res.statusCode != 404 && error is String) {
+          return ApiResult(error: error);
+        }
+      } catch (_) {}
       return ApiResult(error: 'HTTP ${res.statusCode}');
     } catch (e) {
       return ApiResult(error: e.toString());

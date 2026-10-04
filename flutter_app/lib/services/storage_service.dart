@@ -14,6 +14,9 @@ class StorageService {
   static const _kLocalPendingPlan = 'sp_local_pending_plan';
   static const _kUnsynced = 'sp_unsynced';
   static const _kLocalArchive = 'sp_local_archive';
+  static const _kLocalPlanIds = 'sp_local_plan_ids';
+  static const _kCurrentLocalPlan = 'sp_current_local_plan';
+  static const _kLocalPlanPrefix = 'sp_local_plan_';
 
   String _planKey({String? username, required bool local}) {
     if (username == null || username.trim().isEmpty) return _kPlan;
@@ -55,6 +58,68 @@ class StorageService {
   /// Merkt sich, dass der lokale Plan von [username] Änderungen enthält, die
   /// der Server noch nicht bestätigt hat. Überlebt einen Neustart, damit der
   /// nächste Abruf den lokalen Plan nicht mit dem Serverstand überschreibt.
+  // ---------------------------------------------------------------------
+  // Lokale Pläne: mehrere Pläne ohne Konten, jeder unter seiner ID.
+  // ---------------------------------------------------------------------
+
+  /// IDs der lokalen Pläne in Anzeigereihenfolge, oder `null`, wenn noch
+  /// nie lokale Pläne gespeichert wurden (dann steht die Umstellung von
+  /// lokalen Benutzern aus).
+  Future<List<String>?> loadLocalPlanIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_kLocalPlanIds);
+  }
+
+  Future<void> saveLocalPlanIds(List<String> ids) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kLocalPlanIds, ids);
+  }
+
+  Future<String?> loadCurrentLocalPlanId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kCurrentLocalPlan);
+  }
+
+  Future<void> saveCurrentLocalPlanId(String? id) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (id == null) {
+      await prefs.remove(_kCurrentLocalPlan);
+    } else {
+      await prefs.setString(_kCurrentLocalPlan, id);
+    }
+  }
+
+  Future<void> saveLocalPlan(String id, StudyPlan plan) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_kLocalPlanPrefix$id', jsonEncode(plan.toJson()));
+  }
+
+  Future<StudyPlan?> loadLocalPlan(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('$_kLocalPlanPrefix$id');
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return StudyPlan.fromJson(Map<String, dynamic>.from(decoded));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> clearLocalPlan(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_kLocalPlanPrefix$id');
+  }
+
+  /// Entfernt die Daten der früheren lokalen Benutzer (nach der Umstellung
+  /// auf lokale Pläne).
+  Future<void> clearLegacyLocalUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kLocalUsers);
+    await prefs.remove(_kLocalArchive);
+  }
+
   Future<void> saveUnsyncedChanges(String username, bool unsynced) async {
     final prefs = await SharedPreferences.getInstance();
     final key = _unsyncedKey(username);

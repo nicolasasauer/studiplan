@@ -1,12 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:collection/collection.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
-import '../models/archived_local_plan.dart';
 import '../models/lecture.dart';
-import '../models/local_user_account.dart';
 import '../models/semester.dart';
 import '../models/study_plan.dart';
 import '../services/api_service.dart';
@@ -35,10 +32,15 @@ class ShareLocalPlanResult {
   final String? error;
 }
 
-class StudyPlanProvider extends ChangeNotifier {
-  static const _legacyGeneratedLocalUsername = 'lokal';
-  static const _maxPasswordLength = 128;
+/// Ein lokaler Plan in der Planliste.
+class LocalPlanSummary {
+  const LocalPlanSummary({required this.id, required this.name});
 
+  final String id;
+  final String name;
+}
+
+class StudyPlanProvider extends ChangeNotifier {
   final StorageService _storage;
   final _uuid = const Uuid();
 
@@ -49,6 +51,10 @@ class StudyPlanProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoading = false;
   bool _localMode = false;
+
+  /// Im lokalen Modus: der geöffnete Plan und alle lokalen Pläne.
+  String? _localPlanId;
+  List<LocalPlanSummary> _localPlans = const [];
   Timer? _syncTimer;
   final ApiService Function(String baseUrl) _apiFactory;
 
@@ -71,7 +77,12 @@ class StudyPlanProvider extends ChangeNotifier {
   StudyPlan get plan => _plan;
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
-  bool get isLoggedIn => currentUser != null;
+  /// Ob ein Plan geöffnet ist: lokal immer, sobald die Pläne geladen sind,
+  /// im Servermodus nach der Anmeldung.
+  bool get isLoggedIn =>
+      _localMode ? _localPlanId != null : currentUser != null;
+  String? get currentLocalPlanId => _localPlanId;
+  List<LocalPlanSummary> get localPlans => _localPlans;
   bool get localMode => _localMode;
   bool get canUseRemote => !_localMode && _baseUrl.isNotEmpty;
   bool get hasUnsyncedChanges => _hasUnsyncedChanges;
@@ -89,23 +100,21 @@ class StudyPlanProvider extends ChangeNotifier {
       _baseUrl = await _storage.loadBaseUrl();
       _localMode = (await _storage.loadLocalMode()) ?? _baseUrl.isEmpty;
 
-      final savedUser = await _storage.loadUser();
       if (_localMode) {
-        await _restoreLocalSession(savedUser);
-      } else if (savedUser != null) {
-        currentUser = savedUser['username'];
-        authToken = savedUser['token'];
-        _hasUnsyncedChanges =
-            await _storage.loadUnsyncedChanges(currentUser!);
-      }
-
-      if (currentUser != null) {
-        final saved = await _storage.loadPlan(
-          username: currentUser,
-          local: _localMode,
-          fallbackToLegacy: !_localMode,
-        );
-        if (saved != null) _plan = saved;
+        await _openLocalPlans();
+      } else {
+        final savedUser = await _storage.loadUser();
+        if (savedUser != null) {
+          currentUser = savedUser['username'];
+          authToken = savedUser['token'];
+          _hasUnsyncedChanges =
+              await _storage.loadUnsyncedChanges(currentUser!);
+          final saved = await _storage.loadPlan(
+            username: currentUser,
+            fallbackToLegacy: true,
+          );
+          if (saved != null) _plan = saved;
+        }
       }
 
       if (isLoggedIn && !_localMode) {
@@ -124,24 +133,15 @@ class StudyPlanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Benutzer auf dem Server (nur im Servermodus).
   Future<List<String>> getUsers() async {
-    if (_localMode) {
-      // Kopie sortieren: Die gelieferte Liste kann unveränderlich sein.
-      final users = [...await _storage.loadLocalUsers()];
-      users.sort(
-        (a, b) => a.username.toLowerCase().compareTo(b.username.toLowerCase()),
-      );
-      return users.map((user) => user.username).toList();
-    }
-
+    if (_localMode) return const [];
     final r = await _api.getUsers();
     return r.data ?? [];
   }
 
   Future<({List<String> users, String? error})> getUsersResult() async {
-    if (_localMode) {
-      return (users: await getUsers(), error: null);
-    }
+    if (_localMode) return (users: const <String>[], error: null);
 
     if (_baseUrl.isEmpty) {
       return (
@@ -159,10 +159,6 @@ class StudyPlanProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      if (_localMode) {
-        return await _loginLocalUser(username, password);
-      }
-
       if (_baseUrl.isEmpty) {
         return 'Server-URL nicht konfiguriert';
       }
@@ -199,13 +195,11 @@ class StudyPlanProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      if (_localMode) {
-        return await _createLocalUser(username, password);
-      }
-
       if (_baseUrl.isEmpty) {
         return 'Server-URL nicht konfiguriert';
       }
+      final passwordError = ApiService.checkNewPassword(password);
+      if (passwordError != null) return passwordError;
 
       final r = await _api.createUser(username, password);
       if (r.isSuccess && r.data != null) {
@@ -244,11 +238,7 @@ class StudyPlanProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      if (_localMode) {
-        return await _deleteLocalUser(currentUser!, keepLocalMode: true);
-      }
-
-      if (authToken == null) return 'Nicht angemeldet';
+      if (_localMode || authToken == null) return 'Nicht angemeldet';
       final username = currentUser!;
       final r = await _api.deleteUser(username, authToken!);
       if (r.isSuccess) {
@@ -270,10 +260,6 @@ class StudyPlanProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      if (_localMode) {
-        return await _deleteLocalUser(username);
-      }
-
       final r = await _api.deleteUser(username);
       if (r.isSuccess) return null;
       return r.error ?? 'Löschen fehlgeschlagen';
@@ -285,14 +271,13 @@ class StudyPlanProvider extends ChangeNotifier {
     }
   }
 
-  /// Gibt den Plan des angemeldeten lokalen Benutzers zur Synchronisierung
-  /// frei: meldet sich am Server an (oder legt ein Konto an), lädt den Plan
-  /// hoch und wechselt in den Servermodus.
+  /// Gibt den geöffneten lokalen Plan zur Synchronisierung frei: meldet sich
+  /// am Server an (oder legt ein Konto an), lädt den Plan hoch und wechselt in
+  /// den Servermodus.
   ///
-  /// Der lokale Benutzer wird danach archiviert (siehe [loadLocalArchive])
-  /// und lässt sich im lokalen Modus wiederherstellen. Bis zur Umstellung
-  /// (Anmeldung und Prüfung des Serverplans erfolgreich) ändert sich am
-  /// Zustand der App nichts.
+  /// Der lokale Plan bleibt in der Planliste des lokalen Modus erhalten. Bis
+  /// zur Umstellung (Anmeldung und Prüfung des Serverplans erfolgreich)
+  /// ändert sich am Zustand der App nichts.
   Future<ShareLocalPlanResult> shareLocalPlan({
     required String serverUrl,
     required String username,
@@ -300,7 +285,7 @@ class StudyPlanProvider extends ChangeNotifier {
     required bool createAccount,
     ServerPlanResolution resolution = ServerPlanResolution.ask,
   }) async {
-    if (!_localMode || currentUser == null) {
+    if (!_localMode || _localPlanId == null) {
       return const ShareLocalPlanResult(
           ShareLocalPlanStatus.failed, 'Kein lokaler Plan geöffnet');
     }
@@ -314,6 +299,13 @@ class StudyPlanProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final api = _apiFactory(url);
+      if (createAccount) {
+        final passwordError = ApiService.checkNewPassword(password);
+        if (passwordError != null) {
+          return ShareLocalPlanResult(
+              ShareLocalPlanStatus.failed, passwordError);
+        }
+      }
       final auth = createAccount
           ? await api.createUser(username.trim(), password)
           : await api.login(username.trim(), password);
@@ -349,11 +341,11 @@ class StudyPlanProvider extends ChangeNotifier {
       final useServerPlan =
           serverHasPlan && resolution == ServerPlanResolution.keepServer;
 
-      // Ab hier: lokalen Benutzer archivieren und in den Servermodus
-      // wechseln.
+      // Ab hier: in den Servermodus wechseln. Der lokale Plan bleibt
+      // gespeichert.
       final localPlan = StudyPlan.fromJson(_plan.toJson());
-      await _archiveLocalUser(currentUser!, localPlan, sharedAs: remoteUser);
       _syncTimer?.cancel();
+      _localPlanId = null;
       _baseUrl = url;
       _localMode = false;
       currentUser = remoteUser;
@@ -381,75 +373,8 @@ class StudyPlanProvider extends ChangeNotifier {
     }
   }
 
-  /// Archivierte lokale Benutzer samt Plan, neueste zuerst.
-  Future<List<ArchivedLocalPlan>> loadLocalArchive() async {
-    final archive = await _storage.loadLocalArchive();
-    archive.sort((a, b) => b.archivedAt.compareTo(a.archivedAt));
-    return archive;
-  }
-
-  /// Stellt einen archivierten Plan als lokalen Benutzer wieder her. Ist der
-  /// Name vergeben, wird eine Nummer angehängt. Gibt den Namen des
-  /// wiederhergestellten Benutzers zurück oder `null`, wenn es den Eintrag
-  /// nicht gibt.
-  Future<String?> restoreArchivedPlan(String id) async {
-    final archive = await _storage.loadLocalArchive();
-    final entry = archive.firstWhereOrNull((e) => e.id == id);
-    if (entry == null) return null;
-
-    final users = await _storage.loadLocalUsers();
-    final taken = users.map((u) => u.username).toSet();
-    var name = entry.username;
-    for (var n = 2; taken.contains(name); n++) {
-      final suffix = ' $n';
-      final base = entry.username.length + suffix.length > 50
-          ? entry.username.substring(0, 50 - suffix.length)
-          : entry.username;
-      name = '$base$suffix';
-    }
-
-    // Erst Plan und Benutzer anlegen, dann aus dem Archiv entfernen.
-    await _storage.savePlan(entry.plan, username: name, local: true);
-    await _storage.saveLocalUsers([
-      ...users,
-      LocalUserAccount(username: name, passwordHash: entry.passwordHash),
-    ]..sort((a, b) =>
-        a.username.toLowerCase().compareTo(b.username.toLowerCase())));
-    await _storage.saveLocalArchive(
-        archive.where((e) => e.id != id).toList());
-    return name;
-  }
-
-  Future<void> deleteArchivedPlan(String id) async {
-    final archive = await _storage.loadLocalArchive();
-    await _storage.saveLocalArchive(
-        archive.where((e) => e.id != id).toList());
-  }
-
-  Future<void> _archiveLocalUser(
-    String username,
-    StudyPlan plan, {
-    String? sharedAs,
-  }) async {
-    final users = await _storage.loadLocalUsers();
-    final account = users.firstWhereOrNull((u) => u.username == username);
-    final archive = await _storage.loadLocalArchive();
-    archive.add(ArchivedLocalPlan(
-      id: _uuid.v4(),
-      username: username,
-      passwordHash: account?.passwordHash,
-      archivedAt: DateTime.now(),
-      sharedAs: sharedAs,
-      plan: plan,
-    ));
-    // Erst das Archiv schreiben, dann den Benutzer entfernen: So ist der
-    // Plan zu jedem Zeitpunkt mindestens einmal gespeichert.
-    await _storage.saveLocalArchive(archive);
-    await _storage.saveLocalUsers(
-        users.where((u) => u.username != username).toList());
-    await _storage.clearPlan(username: username, local: true);
-  }
-
+  /// Wechselt in den lokalen Modus und öffnet den zuletzt benutzten
+  /// lokalen Plan (oder legt den ersten an).
   Future<void> enterLocalMode() async {
     _syncTimer?.cancel();
     _localMode = true;
@@ -457,14 +382,16 @@ class StudyPlanProvider extends ChangeNotifier {
     authToken = null;
     _plan = StudyPlan();
     _hasUnsyncedChanges = false;
-    notifyListeners();
     await _storage.clearUser();
     await _storage.saveLocalMode(true);
+    await _openLocalPlans();
+    notifyListeners();
   }
 
   Future<void> leaveLocalMode() async {
     _syncTimer?.cancel();
     _localMode = false;
+    _localPlanId = null;
     currentUser = null;
     authToken = null;
     _plan = StudyPlan();
@@ -519,11 +446,15 @@ class StudyPlanProvider extends ChangeNotifier {
 
   Future<void> _save() async {
     _localRevision++;
-    await _storage.savePlan(
-      _plan,
-      username: currentUser,
-      local: _localMode,
-    );
+    if (_localMode) {
+      final id = _localPlanId;
+      if (id != null) {
+        await _storage.saveLocalPlan(id, _plan);
+        _updateLocalPlanName(id, _plan.planName);
+      }
+    } else {
+      await _storage.savePlan(_plan, username: currentUser);
+    }
     if (_canSyncRemote) {
       await _setUnsyncedChanges(true);
       notifyListeners();
@@ -608,7 +539,7 @@ class StudyPlanProvider extends ChangeNotifier {
   }
 
   Future<void> updatePlanName(String name) async {
-    _plan.planName = name.trim().isEmpty ? 'Mein Studienplan' : name.trim();
+    _plan.planName = name.trim().isEmpty ? StudyPlan.defaultPlanName : name.trim();
     await _save();
   }
 
@@ -866,9 +797,15 @@ class StudyPlanProvider extends ChangeNotifier {
       if (decoded is! Map) {
         return 'Import fehlgeschlagen: Ungültiges JSON-Format';
       }
-      final data = Map<String, dynamic>.from(decoded);
-      _plan = StudyPlan.fromJson(data);
-      await _save();
+      final imported = StudyPlan.fromJson(Map<String, dynamic>.from(decoded));
+      if (_localMode) {
+        // Lokal kommt ein importierter Plan neben die vorhandenen, statt den
+        // geöffneten zu ersetzen.
+        await createLocalPlan(from: imported);
+      } else {
+        _plan = imported;
+        await _save();
+      }
       return null;
     } catch (e) {
       return 'Import fehlgeschlagen: $e';
@@ -881,201 +818,155 @@ class StudyPlanProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> _restoreLocalSession(Map<String, String>? savedUser) async {
-    var localUsers = await _storage.loadLocalUsers();
-    localUsers = await _normalizeLegacyGeneratedLocalUsers(localUsers);
-    if (savedUser != null &&
-        localUsers.any((user) => user.username == savedUser['username'])) {
-      currentUser = savedUser['username'];
-      authToken = savedUser['token'];
+  // ---------------------------------------------------------------------
+  // Lokale Pläne
+  // ---------------------------------------------------------------------
+
+  /// Legt einen neuen lokalen Plan an (leer oder aus [from]) und öffnet ihn.
+  /// Ein leerer Plan ist noch nicht eingerichtet, die Oberfläche fragt dann
+  /// nach Name und Semestern.
+  Future<String> createLocalPlan({StudyPlan? from}) async {
+    final id = _uuid.v4();
+    final plan = from ?? StudyPlan();
+    await _storage.saveLocalPlan(id, plan);
+    final ids = [..._localPlans.map((p) => p.id), id];
+    await _storage.saveLocalPlanIds(ids);
+    _localPlans = [
+      ..._localPlans,
+      LocalPlanSummary(id: id, name: plan.planName),
+    ];
+    await _activateLocalPlan(id, plan);
+    notifyListeners();
+    return id;
+  }
+
+  /// Öffnet einen anderen lokalen Plan.
+  Future<void> switchLocalPlan(String id) async {
+    if (!_localMode || id == _localPlanId) return;
+    if (!_localPlans.any((p) => p.id == id)) return;
+    final plan = await _storage.loadLocalPlan(id) ?? StudyPlan();
+    await _activateLocalPlan(id, plan);
+    notifyListeners();
+  }
+
+  /// Löscht einen lokalen Plan. War er geöffnet, wird der nächste geöffnet;
+  /// war es der letzte, wird ein neuer leerer Plan angelegt.
+  Future<void> deleteLocalPlan(String id) async {
+    if (!_localPlans.any((p) => p.id == id)) return;
+    final remaining = _localPlans.where((p) => p.id != id).toList();
+    // Erst die Liste ohne den Plan speichern, dann seine Daten löschen.
+    await _storage.saveLocalPlanIds(remaining.map((p) => p.id).toList());
+    await _storage.clearLocalPlan(id);
+    _localPlans = remaining;
+    if (id == _localPlanId) {
+      if (remaining.isEmpty) {
+        await createLocalPlan();
+        return;
+      }
+      final next = remaining.first;
+      await _activateLocalPlan(
+          next.id, await _storage.loadLocalPlan(next.id) ?? StudyPlan());
+    }
+    notifyListeners();
+  }
+
+  Future<void> _activateLocalPlan(String id, StudyPlan plan) async {
+    _localPlanId = id;
+    _plan = plan;
+    _localRevision++;
+    await _storage.saveCurrentLocalPlanId(id);
+  }
+
+  void _updateLocalPlanName(String id, String name) {
+    _localPlans = [
+      for (final p in _localPlans)
+        p.id == id ? LocalPlanSummary(id: id, name: name) : p,
+    ];
+  }
+
+  /// Lädt die lokalen Pläne (nach der Umstellung von lokalen Benutzern) und
+  /// öffnet den zuletzt benutzten. Gibt es noch keinen, wird einer angelegt.
+  Future<void> _openLocalPlans() async {
+    final ids = await _storage.loadLocalPlanIds() ??
+        await _migrateLocalUsersToPlans();
+    final summaries = <LocalPlanSummary>[];
+    final plans = <String, StudyPlan>{};
+    for (final id in ids) {
+      final plan = await _storage.loadLocalPlan(id);
+      if (plan == null) continue;
+      plans[id] = plan;
+      summaries.add(LocalPlanSummary(id: id, name: plan.planName));
+    }
+    _localPlans = summaries;
+    if (summaries.isEmpty) {
+      _localPlanId = null;
+      await createLocalPlan();
       return;
     }
-
-    if (localUsers.isEmpty) {
-      await _migrateLegacyLocalPlanIfNeeded();
-    }
-
-    currentUser = null;
-    authToken = null;
-    await _storage.clearUser();
+    final saved = await _storage.loadCurrentLocalPlanId();
+    final id = plans.containsKey(saved) ? saved! : summaries.first.id;
+    await _activateLocalPlan(id, plans[id]!);
   }
 
-  Future<String?> _loginLocalUser(String username, String? password) async {
-    final normalized = _sanitizeUsername(username);
-    if (normalized == null) return 'Ungültiger Benutzername';
+  /// Einmalige Umstellung: Aus jedem früheren lokalen Benutzer (und aus dem
+  /// Archiv freigegebener Pläne) wird ein lokaler Plan. Lokale Passwörter
+  /// entfallen. Die neuen Pläne werden vollständig gespeichert, bevor die
+  /// alten Daten gelöscht werden.
+  Future<List<String>> _migrateLocalUsersToPlans() async {
+    final ids = <String>[];
+    String? currentId;
+    final savedUser = await _storage.loadUser();
+    final savedLocalUser = savedUser?['token'] == null
+        ? null
+        : savedUser!['token']!.startsWith('local-session:')
+            ? savedUser['username']
+            : null;
+
+    Future<String> adopt(StudyPlan plan, String fallbackName) async {
+      if (plan.planName == StudyPlan.defaultPlanName &&
+          fallbackName.trim().isNotEmpty) {
+        plan.planName = fallbackName.trim();
+      }
+      final id = _uuid.v4();
+      await _storage.saveLocalPlan(id, plan);
+      ids.add(id);
+      return id;
+    }
 
     final users = await _storage.loadLocalUsers();
-    LocalUserAccount? account;
     for (final user in users) {
-      if (user.username == normalized) {
-        account = user;
-        break;
-      }
-    }
-
-    if (account == null) return 'Benutzer nicht gefunden';
-
-    if (account.passwordHash != null) {
-      if (password == null || password.isEmpty) return 'REQUIRES_PASSWORD';
-      if (!_verifyLocalPassword(password, account.passwordHash!)) {
-        return 'Falsches Passwort';
-      }
-    }
-
-    currentUser = account.username;
-    authToken = _localSessionToken(account.username);
-    await _storage.saveUser(currentUser!, authToken!);
-    _plan = await _storage.loadPlan(
-          username: account.username,
-          local: true,
-          fallbackToLegacy: false,
-        ) ??
-        StudyPlan();
-    return null;
-  }
-
-  Future<String?> _createLocalUser(String username, String? password) async {
-    final normalized = _sanitizeUsername(username);
-    if (normalized == null) return 'Ungültiger Benutzername';
-
-    if (password != null && password.length > _maxPasswordLength) {
-      return 'Passwort zu lang';
-    }
-
-    final users = await _storage.loadLocalUsers();
-    if (users.any((user) => user.username == normalized)) {
-      return 'Benutzername bereits vergeben';
-    }
-
-    final localUsers = [...users];
-    localUsers.add(
-      LocalUserAccount(
-        username: normalized,
-        passwordHash: (password == null || password.isEmpty)
-            ? null
-            : _hashLocalPassword(password),
-      ),
-    );
-    localUsers.sort(
-      (a, b) => a.username.toLowerCase().compareTo(b.username.toLowerCase()),
-    );
-
-    currentUser = normalized;
-    authToken = _localSessionToken(normalized);
-    await _storage.saveLocalUsers(localUsers);
-    final pendingPlan = await _storage.loadPendingLocalPlan();
-    _plan = pendingPlan ?? StudyPlan();
-    if (pendingPlan != null) {
-      await _storage.savePlan(_plan, username: normalized, local: true);
-      await _storage.clearPendingLocalPlan();
-    }
-    await _storage.saveUser(currentUser!, authToken!);
-    return null;
-  }
-
-  Future<String?> _deleteLocalUser(
-    String username, {
-    bool keepLocalMode = false,
-  }) async {
-    final users = await _storage.loadLocalUsers();
-    final updatedUsers = users
-        .where((user) => user.username != username)
-        .toList(growable: false);
-    if (updatedUsers.length == users.length) {
-      return 'Benutzer nicht gefunden';
-    }
-
-    await _storage.saveLocalUsers(updatedUsers);
-    await _storage.clearPlan(username: username, local: true);
-
-    if (currentUser == username) {
-      currentUser = null;
-      authToken = null;
-      _plan = StudyPlan();
-      await _storage.clearUser();
-      if (!keepLocalMode) {
-        _localMode = false;
-        await _storage.saveLocalMode(false);
-      }
-    }
-
-    return null;
-  }
-
-  String? _sanitizeUsername(String username) {
-    final trimmed = username.trim();
-    if (trimmed.isEmpty || trimmed.length > 50) return null;
-    if (!RegExp(r'^[-a-zA-Z0-9_ ]+$').hasMatch(trimmed)) return null;
-    return trimmed;
-  }
-
-  String _localSessionToken(String username) => 'local-session:$username';
-
-  String _hashLocalPassword(String password) {
-    final salt = _uuid.v4();
-    final digest = sha256.convert(utf8.encode('$salt:$password')).toString();
-    return '$salt:$digest';
-  }
-
-  bool _verifyLocalPassword(String password, String storedHash) {
-    final separator = storedHash.indexOf(':');
-    if (separator == -1) return false;
-    final salt = storedHash.substring(0, separator);
-    final digest = storedHash.substring(separator + 1);
-    final candidate = sha256.convert(utf8.encode('$salt:$password')).toString();
-    return candidate == digest;
-  }
-
-  Future<void> _migrateLegacyLocalPlanIfNeeded() async {
-    final pendingPlan = await _storage.loadPendingLocalPlan();
-    if (pendingPlan != null) return;
-
-    final legacyPlan = await _storage.loadPlan();
-    if (legacyPlan == null) return;
-
-    await _storage.savePendingLocalPlan(legacyPlan);
-    await _storage.clearLegacyPlan();
-  }
-
-  Future<List<LocalUserAccount>> _normalizeLegacyGeneratedLocalUsers(
-    List<LocalUserAccount> localUsers,
-  ) async {
-    final candidates = localUsers
-        .where((user) =>
-            user.username == _legacyGeneratedLocalUsername &&
-            user.passwordHash == null)
-        .toList(growable: false);
-    if (candidates.length != 1) {
-      return localUsers;
-    }
-
-    final candidate = candidates.single;
-    final remainingUsers = localUsers
-        .where((user) => user.username != candidate.username)
-        .toList(growable: false);
-
-    if (remainingUsers.isNotEmpty) {
-      await _storage.clearPlan(username: candidate.username, local: true);
-      await _storage.saveLocalUsers(remainingUsers);
-      return remainingUsers;
-    }
-
-    final pendingPlan = await _storage.loadPendingLocalPlan();
-    if (pendingPlan == null) {
-      final generatedPlan = await _storage.loadPlan(
-        username: candidate.username,
+      final plan = await _storage.loadPlan(
+        username: user.username,
         local: true,
         fallbackToLegacy: false,
       );
-      if (generatedPlan != null) {
-        await _storage.savePendingLocalPlan(generatedPlan);
-      }
+      if (plan == null) continue;
+      final id = await adopt(plan, user.username);
+      if (user.username == savedLocalUser) currentId = id;
+    }
+    for (final entry in await _storage.loadLocalArchive()) {
+      await adopt(entry.plan, entry.username);
+    }
+    final pending = await _storage.loadPendingLocalPlan();
+    if (pending != null) {
+      await adopt(pending, '');
+    } else if (users.isEmpty) {
+      // Sehr alter Stand: ein einzelner Plan ohne Benutzer.
+      final legacy = await _storage.loadPlan();
+      if (legacy != null) await adopt(legacy, '');
     }
 
-    await _storage.clearPlan(username: candidate.username, local: true);
-    await _storage.saveLocalUsers(const []);
-    await _storage.clearUser();
-    return const [];
+    await _storage.saveLocalPlanIds(ids);
+    await _storage.saveCurrentLocalPlanId(currentId);
+
+    for (final user in users) {
+      await _storage.clearPlan(username: user.username, local: true);
+    }
+    await _storage.clearLegacyLocalUsers();
+    await _storage.clearPendingLocalPlan();
+    if (users.isEmpty && pending == null) await _storage.clearLegacyPlan();
+    if (savedLocalUser != null) await _storage.clearUser();
+    return ids;
   }
 
   ({String? semesterId, int index})? _findLectureLocation(String lectureId) {

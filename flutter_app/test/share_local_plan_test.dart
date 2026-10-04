@@ -10,7 +10,7 @@ import 'package:studi_plan/widgets/share_local_plan_dialog.dart';
 
 import 'support/fake_api.dart';
 
-/// Lokaler Benutzer "Lokal" mit eingerichtetem Plan "Lokaler Plan".
+/// Lokaler Modus mit eingerichtetem Plan "Lokaler Plan".
 Future<StudyPlanProvider> _localProvider(
   FakeServer server, [
   FakeApi? api,
@@ -20,7 +20,6 @@ Future<StudyPlanProvider> _localProvider(
       StudyPlanProvider(apiFactory: (_) => api ?? FakeApi(server));
   await provider.initialize();
   await provider.enterLocalMode();
-  await provider.createUser('Lokal', null);
   await provider.initializePlan('Lokaler Plan', 3, 'winter');
   return provider;
 }
@@ -39,7 +38,7 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test/',
         username: 'Neu',
-        password: 'geheim',
+        password: 'geheim123',
         createAccount: true,
       );
 
@@ -51,22 +50,15 @@ void main() {
       expect(provider.plan.semesters, hasLength(3));
       expect(provider.hasUnsyncedChanges, isFalse);
       expect(server.plan!['planName'], 'Lokaler Plan');
-      expect(server.users['Neu'], 'geheim');
+      expect(server.users['Neu'], 'geheim123');
 
-      // Der lokale Benutzer ist archiviert, der Plan bleibt erhalten.
+      // Der lokale Plan bleibt im lokalen Modus erhalten.
       final storage = StorageService();
-      final users = await storage.loadLocalUsers();
-      expect(users.map((u) => u.username), isNot(contains('Lokal')));
-      expect(
-          await storage.loadPlan(
-              username: 'Lokal', local: true, fallbackToLegacy: false),
-          isNull);
-      final archive = await provider.loadLocalArchive();
-      expect(archive, hasLength(1));
-      expect(archive.single.username, 'Lokal');
-      expect(archive.single.sharedAs, 'Neu');
-      expect(archive.single.plan.planName, 'Lokaler Plan');
-      expect(archive.single.plan.semesters, hasLength(3));
+      final ids = await storage.loadLocalPlanIds();
+      expect(ids, hasLength(1));
+      final local = await storage.loadLocalPlan(ids!.single);
+      expect(local!.planName, 'Lokaler Plan');
+      expect(local.semesters, hasLength(3));
 
       // Nach einem Neustart ist die App im Servermodus beim neuen Konto.
       provider.dispose();
@@ -86,6 +78,7 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -101,12 +94,13 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
       expect(result.status, ShareLocalPlanStatus.serverHasPlan);
       expect(provider.localMode, isTrue);
-      expect(provider.currentUser, 'Lokal');
+      expect(provider.isLoggedIn, isTrue);
       expect(provider.plan.planName, 'Lokaler Plan');
       expect(server.plan!['planName'], 'Serverplan');
       expect(server.saveCalls, 0);
@@ -114,6 +108,7 @@ void main() {
       final upload = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
         resolution: ServerPlanResolution.uploadLocal,
       );
@@ -131,6 +126,7 @@ void main() {
       final result = await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
         resolution: ServerPlanResolution.keepServer,
       );
@@ -163,11 +159,8 @@ void main() {
       expect(wrong.status, ShareLocalPlanStatus.failed);
 
       expect(provider.localMode, isTrue);
-      expect(provider.currentUser, 'Lokal');
+      expect(provider.plan.planName, 'Lokaler Plan');
       expect(server.saveCalls, 0);
-      expect(await provider.loadLocalArchive(), isEmpty);
-      expect((await StorageService().loadLocalUsers()).single.username,
-          'Lokal');
       provider.dispose();
     });
 
@@ -178,6 +171,7 @@ void main() {
       final result = await failing.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -195,6 +189,7 @@ void main() {
       final result = await offline.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
 
@@ -211,72 +206,58 @@ void main() {
       offline.dispose();
     });
 
-    test('restores an archived plan with its password', () async {
-      final server = FakeServer()..plan = null;
-      SharedPreferences.setMockInitialValues({});
-      final provider = StudyPlanProvider(apiFactory: (_) => FakeApi(server));
-      await provider.initialize();
-      await provider.enterLocalMode();
-      await provider.createUser('Lokal', 'pw');
-      await provider.initializePlan('Lokaler Plan', 2, 'summer');
-      await provider.shareLocalPlan(
-        serverUrl: 'http://server.test',
-        username: 'Alice',
-        createAccount: false,
-      );
-
-      // Zurück in den lokalen Modus und wiederherstellen.
-      await provider.logout();
-      await provider.enterLocalMode();
-      final entry = (await provider.loadLocalArchive()).single;
-      final restored = await provider.restoreArchivedPlan(entry.id);
-
-      expect(restored, 'Lokal');
-      expect(await provider.loadLocalArchive(), isEmpty);
-      expect(await provider.login('Lokal', null), 'REQUIRES_PASSWORD');
-      expect(await provider.login('Lokal', 'pw'), isNull);
-      expect(provider.plan.planName, 'Lokaler Plan');
-      expect(provider.plan.semesters, hasLength(2));
-      provider.dispose();
-    });
-
-    test('appends a number when the archived name is taken', () async {
+    test('keeps the local plan for later use in local mode', () async {
       final server = FakeServer()..plan = null;
       final provider = await _localProvider(server);
       await provider.shareLocalPlan(
         serverUrl: 'http://server.test',
         username: 'Alice',
+        password: FakeServer.alicePassword,
         createAccount: false,
       );
+      expect(provider.localMode, isFalse);
+
       await provider.logout();
       await provider.enterLocalMode();
-      await provider.createUser('Lokal', null);
-      await provider.logout();
-
-      final entry = (await provider.loadLocalArchive()).single;
-      expect(await provider.restoreArchivedPlan(entry.id), 'Lokal 2');
-      expect(await provider.getUsers(), ['Lokal', 'Lokal 2']);
-      expect(await provider.login('Lokal 2', null), isNull);
-      expect(provider.plan.planName, 'Lokaler Plan');
+      expect(provider.isLoggedIn, isTrue);
+      expect(provider.localPlans.map((p) => p.name), ['Lokaler Plan']);
+      expect(provider.plan.semesters, hasLength(3));
       provider.dispose();
     });
+  });
 
-    test('deletes an archived plan', () async {
-      final server = FakeServer()..plan = null;
-      final provider = await _localProvider(server);
-      await provider.shareLocalPlan(
-        serverUrl: 'http://server.test',
-        username: 'Alice',
-        createAccount: false,
-      );
+  test('rejects a new server account without a proper password', () async {
+    final server = FakeServer()..plan = null;
+    final provider = await _localProvider(server);
 
-      final entry = (await provider.loadLocalArchive()).single;
-      await provider.deleteArchivedPlan(entry.id);
+    final result = await provider.shareLocalPlan(
+      serverUrl: 'http://server.test',
+      username: 'Neu',
+      password: 'kurz',
+      createAccount: true,
+    );
 
-      expect(await provider.loadLocalArchive(), isEmpty);
-      expect(await provider.restoreArchivedPlan(entry.id), isNull);
-      provider.dispose();
-    });
+    expect(result.status, ShareLocalPlanStatus.failed);
+    expect(result.error, contains('mindestens 8 Zeichen'));
+    expect(server.users.containsKey('Neu'), isFalse);
+    expect(provider.localMode, isTrue);
+    provider.dispose();
+  });
+
+  test('reports a locked account without password', () async {
+    final server = FakeServer()..users['Alt'] = null;
+    final provider = await _localProvider(server);
+
+    final result = await provider.shareLocalPlan(
+      serverUrl: 'http://server.test',
+      username: 'Alt',
+      createAccount: false,
+    );
+
+    expect(result.status, ShareLocalPlanStatus.failed);
+    expect(result.error, contains('kein Passwort'));
+    expect(provider.localMode, isTrue);
+    provider.dispose();
   });
 
   testWidgets('dialog asks about an existing server plan and uploads',
@@ -316,6 +297,8 @@ void main() {
         'Alice');
     await tester.tap(find.text('Bestehendes Konto'));
     await tester.pump();
+    await tester.enterText(find.widgetWithText(TextField, 'Passwort *'),
+        FakeServer.alicePassword);
     await tester.runAsync(() async {
       await tester.tap(find.text('Plan freigeben'));
       await Future<void>.delayed(const Duration(milliseconds: 50));

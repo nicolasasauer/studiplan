@@ -17,7 +17,6 @@ Future<StudyPlanProvider> _plan({int? target}) async {
   final p = StudyPlanProvider();
   await p.initialize();
   await p.enterLocalMode();
-  await p.createUser('Studi', null);
   await p.initializePlan('Plan', 2, 'winter', targetEcts: target);
   final s = p.plan.semesters;
   await p.addLecture(_lecture('Mathe', 8), s[0].id);
@@ -99,12 +98,12 @@ void main() {
         weightAverageGradeByEcts: true,
         targetEcts: 180,
       );
-      await p.logout();
       p.dispose();
 
+      // Nach dem Neustart öffnet die App den zuletzt benutzten Plan.
       final restarted = StudyPlanProvider();
       await restarted.initialize();
-      expect(await restarted.login('Studi', null), isNull);
+      expect(restarted.isLoggedIn, isTrue);
       expect(restarted.plan.targetEcts, 180);
       expect(restarted.plan.weightAverageGradeByEcts, isTrue);
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/semester.dart';
 import '../providers/study_plan_provider.dart';
+import '../services/focus_flow_handoff.dart';
 import 'add_lecture_dialog.dart';
 import 'lecture_card.dart';
 import 'lecture_drag.dart';
@@ -56,14 +57,20 @@ class _SemesterSectionState extends State<SemesterSection> {
     );
   }
 
-  /// Copies this semester for Focus Flow, which takes its lectures over as
-  /// subjects (Einstellungen › Fächer › Aus StudiPlan übernehmen).
-  Future<void> _copyForFocusFlow(BuildContext context) async {
+  /// Opens Focus Flow with this semester, which takes its lectures over as
+  /// subjects. Without Focus Flow on this device the semester goes to the
+  /// clipboard, to paste there under Einstellungen › Fächer.
+  Future<void> _handOverToFocusFlow(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
+    if (await FocusFlowHandoff.openLink(
+        FocusFlowHandoff.link(p.plan, sem))) {
+      return;
+    }
     await Clipboard.setData(
         ClipboardData(text: p.plan.semesterExportJson(sem)));
     messenger.showSnackBar(SnackBar(
-      content: Text('${sem.number}. Semester kopiert. In Focus Flow unter '
+      content: Text('Focus Flow ist hier nicht installiert – '
+          '${sem.number}. Semester kopiert. In Focus Flow unter '
           'Einstellungen › Fächer › „Aus StudiPlan übernehmen“ einfügen.'),
       duration: const Duration(seconds: 6),
     ));
@@ -180,7 +187,7 @@ class _SemesterSectionState extends State<SemesterSection> {
                           if (v == 'delete') {
                             _delete(context);
                           } else if (v == 'focusflow') {
-                            _copyForFocusFlow(context);
+                            _handOverToFocusFlow(context);
                           } else {
                             p.sortSemesterLectures(sem.id, v);
                           }

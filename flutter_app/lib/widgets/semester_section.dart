@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/semester.dart';
 import '../providers/study_plan_provider.dart';
 import 'add_lecture_dialog.dart';
@@ -53,6 +54,19 @@ class _SemesterSectionState extends State<SemesterSection> {
         ],
       ),
     );
+  }
+
+  /// Copies this semester for Focus Flow, which takes its lectures over as
+  /// subjects (Einstellungen › Fächer › Aus StudiPlan übernehmen).
+  Future<void> _copyForFocusFlow(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(
+        ClipboardData(text: p.plan.semesterExportJson(sem)));
+    messenger.showSnackBar(SnackBar(
+      content: Text('${sem.number}. Semester kopiert. In Focus Flow unter '
+          'Einstellungen › Fächer › „Aus StudiPlan übernehmen“ einfügen.'),
+      duration: const Duration(seconds: 6),
+    ));
   }
 
   void _addLecture(BuildContext context) {
@@ -165,6 +179,8 @@ class _SemesterSectionState extends State<SemesterSection> {
                         onSelected: (v) {
                           if (v == 'delete') {
                             _delete(context);
+                          } else if (v == 'focusflow') {
+                            _copyForFocusFlow(context);
                           } else {
                             p.sortSemesterLectures(sem.id, v);
                           }
@@ -174,6 +190,10 @@ class _SemesterSectionState extends State<SemesterSection> {
                               value: 'date', child: Text('Sortieren: Prüfungsdatum')),
                           const PopupMenuItem(
                               value: 'ects', child: Text('Sortieren: ECTS')),
+                          const PopupMenuDivider(),
+                          const PopupMenuItem(
+                              value: 'focusflow',
+                              child: Text('An Focus Flow übergeben')),
                           const PopupMenuDivider(),
                           PopupMenuItem(
                             value: 'delete',

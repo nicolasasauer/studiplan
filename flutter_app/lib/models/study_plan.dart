@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'lecture.dart';
 import 'semester.dart';
 
@@ -92,6 +94,15 @@ class StudyPlan {
         'semesters': semesters.map((s) => s.toJson()).toList(),
         'parkingLot': parkingLot.map((l) => l.toJson()).toList(),
       };
+
+  /// [semester] alone, laid out like a whole plan, for Focus Flow's
+  /// "Aus StudiPlan übernehmen". Focus Flow reads it like a full export and
+  /// turns the lectures into subjects.
+  String semesterExportJson(Semester semester) =>
+      const JsonEncoder.withIndent('  ').convert({
+        'planName': planName,
+        'semesters': [semester.toJson()],
+      });
 
   static const maxTargetEcts = 999;
 

@@ -11,12 +11,13 @@ import 'package:studi_plan/models/study_plan.dart';
 import 'package:studi_plan/providers/study_plan_provider.dart';
 import 'package:studi_plan/services/focus_flow_handoff.dart';
 
-Lecture _lecture(String name) => Lecture(
+Lecture _lecture(String name, {String? examDate}) => Lecture(
   id: name,
   name: name,
   ects: 5,
   season: 'both',
   color: '#FF6B6B',
+  examDate: examDate,
 );
 
 void main() {
@@ -49,7 +50,11 @@ void main() {
     await p.initialize();
     await p.enterLocalMode();
     await p.initializePlan('Mechatronik B.Sc.', 6, 'winter');
-    await p.addLecture(_lecture('Regelungstechnik'), p.plan.semesters[1].id);
+    await p.addLecture(
+      _lecture('Regelungstechnik', examDate: '2027-02-12'),
+      p.plan.semesters[1].id,
+    );
+    await p.addLecture(_lecture('Ethik'), p.plan.semesters[1].id);
 
     final link = FocusFlowHandoff.link(p.plan, p.plan.semesters[1]);
     expect(link.scheme, 'focusflow');
@@ -60,8 +65,11 @@ void main() {
         utf8.decode(base64Url.decode(base64Url.normalize(data)))));
     expect(plan.planName, 'Mechatronik B.Sc.');
     expect(plan.semesters.single.number, 2);
-    expect(plan.semesters.single.lectures.single.name, 'Regelungstechnik');
-    expect(plan.semesters.single.lectures.single.color, '#FF6B6B');
+    final lectures = plan.semesters.single.lectures;
+    expect(lectures.first.name, 'Regelungstechnik');
+    expect(lectures.first.color, '#FF6B6B');
+    expect(lectures.first.examDate, '2027-02-12');
+    expect(lectures.last.examDate, isNull);
   });
 
   group('semester menu', () {

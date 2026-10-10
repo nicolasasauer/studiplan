@@ -47,6 +47,7 @@ Ueber den Dialog koennen neue Veranstaltungen mit Name, ECTS, Turnus (WS/SS/Beid
 - Bearbeiten und Loeschen von Veranstaltungen
 - Parkplatz fuer noch nicht zugeordnete Veranstaltungen (erscheint nur wenn belegt)
 - Import/Export des Plans als JSON-Datei
+- Flutter-App: "An Focus Flow uebergeben" im Semester-Menue oeffnet Focus Flow direkt mit dem Semester (Android, Windows-Store-Version), sonst kopiert es das Semester in die Zwischenablage; [Focus Flow](https://github.com/nicolasasauer/focus-flow) legt die Veranstaltungen daraus als Faecher an (Einstellungen › Faecher › "Aus StudiPlan uebernehmen")
 - Persistenz im Browser via `localStorage`; bei Docker-Deployment zusaetzlich server-seitig in einer SQLite-Datenbank unter `/data/studiumsplaner.db`
 
 ## Wichtige Planungsregel

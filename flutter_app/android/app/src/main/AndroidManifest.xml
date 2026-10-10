@@ -28,4 +28,12 @@
             android:name="flutterEmbedding"
             android:value="2"/>
     </application>
+    <!-- Ab Android 11 sieht StudiPlan nur so, ob Focus Flow installiert ist
+         und ein Semester per focusflow://studiplan?plan=… annimmt. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="focusflow"/>
+        </intent>
+    </queries>
 </manifest>

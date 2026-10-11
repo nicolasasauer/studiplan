@@ -7,6 +7,7 @@ import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/focus_flow_export_listener.dart';
 
 void main() {
   // Inter ships with the app; its licence belongs in the licence page.
@@ -25,7 +26,11 @@ void main() {
 /// Owns the [ThemeService], so the app (and every test that pumps it) gets
 /// light/dark switching without extra setup.
 class StudiPlanApp extends StatefulWidget {
-  const StudiPlanApp({super.key});
+  const StudiPlanApp({super.key, this.links});
+
+  /// Links the app was opened with, see [FocusFlowExportListener]; replaced
+  /// in tests.
+  final Stream<Uri>? links;
 
   @override
   State<StudiPlanApp> createState() => _StudiPlanAppState();
@@ -57,7 +62,10 @@ class _StudiPlanAppState extends State<StudiPlanApp> {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: theme.mode,
-          home: const _AppRouter(),
+          home: FocusFlowExportListener(
+            links: widget.links ?? platformAppLinks(),
+            child: const _AppRouter(),
+          ),
         ),
       ),
     );

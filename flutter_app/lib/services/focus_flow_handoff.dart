@@ -29,8 +29,9 @@ abstract final class FocusFlowHandoff {
   }
 
   /// `focusflow://studiplan?plan=…`: the semester in StudiPlan's plan
-  /// layout, base64url-encoded, with only what Focus Flow reads - the
-  /// link has to stay short enough for a Windows command line.
+  /// layout, base64url-encoded, with only what Focus Flow reads (name,
+  /// colour, passed, exam date) - the link has to stay short enough for a
+  /// Windows command line.
   static Uri link(StudyPlan plan, Semester semester) {
     final json = jsonEncode({
       'planName': plan.planName,
@@ -40,7 +41,12 @@ abstract final class FocusFlowHandoff {
           'season': semester.season,
           'lectures': [
             for (final l in semester.lectures)
-              {'name': l.name, 'color': l.color, 'passed': l.passed},
+              {
+                'name': l.name,
+                'color': l.color,
+                'passed': l.passed,
+                if (l.examDate != null) 'examDate': l.examDate,
+              },
           ],
         },
       ],

@@ -1,12 +1,23 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <wchar.h>
 #include <windows.h>
 
 #include "flutter_window.h"
 #include "utils.h"
+#include "app_links/app_links_plugin_c_api.h"
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  // Focus Flow asking for the plan while StudiPlan already runs: hand the
+  // link to that window instead of opening a second one. Checked for the
+  // link first, because without one SendAppLinkToInstance would turn every
+  // second start into a jump to the running window.
+  if (wcsstr(command_line, L"studiplan:") != nullptr &&
+      SendAppLinkToInstance()) {
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {

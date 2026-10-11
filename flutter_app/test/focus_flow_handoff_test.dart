@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -147,6 +148,122 @@ void main() {
       final plan = StudyPlan.fromJson(jsonDecode(copied!));
       expect(plan.semesters.single.lectures.single.name, 'Regelungstechnik');
       expect(find.textContaining('nicht installiert'), findsOneWidget);
+    });
+  });
+
+  test('the plan link carries every semester', () async {
+    SharedPreferences.setMockInitialValues({});
+    final p = StudyPlanProvider();
+    await p.initialize();
+    await p.enterLocalMode();
+    await p.initializePlan('Mechatronik B.Sc.', 3, 'winter');
+    await p.addLecture(_lecture('Mathe 1'), p.plan.semesters[0].id);
+    await p.addLecture(
+      _lecture('Regelungstechnik', examDate: '2027-02-12'),
+      p.plan.semesters[1].id,
+    );
+    await p.addLecture(_lecture('Ethik'), null);
+
+    final link = FocusFlowHandoff.planLink(p.plan);
+    final plan = StudyPlan.fromJson(jsonDecode(utf8.decode(
+        base64Url.decode(base64Url.normalize(link.queryParameters['plan']!)))));
+    expect(plan.semesters.map((s) => s.number), [1, 2, 3]);
+    expect(plan.semesters[1].lectures.single.examDate, '2027-02-12');
+    // The parking lot is not being studied yet.
+    expect(plan.parkingLot, isEmpty);
+  });
+
+  group('Focus Flow asks for the plan', () {
+    final realOpenLink = FocusFlowHandoff.openLink;
+    final opened = <Uri>[];
+
+    setUp(opened.clear);
+    tearDown(() => FocusFlowHandoff.openLink = realOpenLink);
+
+    Future<StreamController<Uri>> pump(
+      WidgetTester tester,
+      StudyPlanProvider p, {
+      bool settle = true,
+    }) async {
+      FocusFlowHandoff.openLink = (link) async {
+        opened.add(link);
+        return true;
+      };
+      final links = StreamController<Uri>();
+      addTearDown(links.close);
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: p,
+          child: StudiPlanApp(links: links.stream),
+        ),
+      );
+      // The loading spinner never settles.
+      settle ? await tester.pumpAndSettle() : await tester.pump();
+      return links;
+    }
+
+    testWidgets('answers right away with the open plan', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final p = StudyPlanProvider();
+      await p.initialize();
+      await p.enterLocalMode();
+      await p.initializePlan('Mechatronik B.Sc.', 2, 'winter');
+      await p.addLecture(_lecture('Regelungstechnik'), p.plan.semesters[1].id);
+      final links = await pump(tester, p);
+
+      links.add(Uri.parse('https://example.com/export'));
+      await tester.pumpAndSettle();
+      expect(opened, isEmpty);
+
+      links.add(Uri.parse('studiplan://export'));
+      await tester.pumpAndSettle();
+
+      expect(opened.single.scheme, 'focusflow');
+      expect(opened.single.host, 'studiplan');
+      expect(find.text('Plan an Focus Flow gesendet'), findsOneWidget);
+    });
+
+    testWidgets('a request during start-up waits for the plan', (
+      tester,
+    ) async {
+      // A plan saved earlier, which the next start loads again.
+      SharedPreferences.setMockInitialValues({});
+      final before = StudyPlanProvider();
+      await before.initialize();
+      await before.enterLocalMode();
+      await before.initializePlan('Mechatronik B.Sc.', 2, 'winter');
+      await before.addLecture(_lecture('Mathe 1'), before.plan.semesters[0].id);
+
+      // Cold start: the link is there before the plan has loaded.
+      final p = StudyPlanProvider();
+      final links = await pump(tester, p, settle: false);
+      links.add(Uri.parse('studiplan://export'));
+      await tester.pump();
+      expect(opened, isEmpty);
+
+      await tester.runAsync(p.initialize);
+      await tester.pumpAndSettle();
+
+      expect(opened, hasLength(1));
+      expect(find.text('Plan an Focus Flow gesendet'), findsOneWidget);
+    });
+
+    testWidgets('a plan without lectures sends nothing', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final p = StudyPlanProvider();
+      await p.initialize();
+      await p.enterLocalMode();
+      await p.initializePlan('Mechatronik B.Sc.', 2, 'winter');
+      final links = await pump(tester, p);
+
+      links.add(Uri.parse('studiplan://export'));
+      await tester.pumpAndSettle();
+
+      expect(opened, isEmpty);
+      expect(find.textContaining('nichts zu senden'), findsOneWidget);
     });
   });
 }

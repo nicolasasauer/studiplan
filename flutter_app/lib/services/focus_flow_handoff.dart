@@ -21,7 +21,11 @@ abstract final class FocusFlowHandoff {
   static Future<bool> _launch(Uri link) async {
     if (!Platform.isAndroid && !Platform.isWindows) return false;
     try {
-      if (!await canLaunchUrl(link)) return false;
+      // Android: straight to launchUrl, which reports a missing Focus Flow
+      // itself. canLaunchUrl depends on package visibility and wrongly said
+      // "not installed" while the <queries> entry lacked the host. Windows:
+      // ask first, or an unknown scheme pops the "find an app" dialog.
+      if (Platform.isWindows && !await canLaunchUrl(link)) return false;
       return await launchUrl(link, mode: LaunchMode.externalApplication);
     } on Object {
       return false;

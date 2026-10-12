@@ -41,7 +41,9 @@
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW"/>
-            <data android:scheme="focusflow"/>
+            <!-- Mit Host: nur so passt der Eintrag auf Focus Flows
+                 Intent-Filter, sonst gilt Focus Flow als nicht installiert. -->
+            <data android:scheme="focusflow" android:host="studiplan"/>
         </intent>
     </queries>
 </manifest>

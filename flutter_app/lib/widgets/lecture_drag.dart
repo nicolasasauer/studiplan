@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../models/lecture.dart';
 import '../theme/app_theme.dart';
+import '../utils/number_format.dart';
 import 'lecture_card.dart' show hexColor;
 
 /// What is being dragged: the lecture and where the drag began.
@@ -358,7 +359,7 @@ class _DragFeedback extends StatelessWidget {
                 ),
               ),
               Text(
-                '${lecture.ects} ECTS',
+                '${formatEcts(lecture.ects)} ECTS',
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
               ),
             ],

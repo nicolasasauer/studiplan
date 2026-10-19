@@ -6,7 +6,7 @@ import 'package:studi_plan/main.dart';
 import 'package:studi_plan/models/lecture.dart';
 import 'package:studi_plan/providers/study_plan_provider.dart';
 
-Lecture _lecture(String name, int ects, {double? grade}) => Lecture(
+Lecture _lecture(String name, double ects, {double? grade}) => Lecture(
   id: name,
   name: name,
   ects: ects,

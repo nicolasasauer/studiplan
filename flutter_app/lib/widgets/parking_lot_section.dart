@@ -6,6 +6,7 @@ import 'add_lecture_dialog.dart';
 import 'lecture_card.dart';
 import 'lecture_drag.dart';
 import '../theme/app_theme.dart';
+import '../utils/number_format.dart';
 
 class ParkingLotSection extends StatefulWidget {
   final List<Lecture> lectures;
@@ -31,6 +32,7 @@ class _ParkingLotSectionState extends State<ParkingLotSection> {
       context: context,
       builder: (_) => AddLectureDialog(
         semesters: widget.semesters,
+        gradeScale: widget.provider.plan.gradeScale,
         onSave: (l, semId) => widget.provider.addLecture(l, semId),
       ),
     );
@@ -98,7 +100,7 @@ class _ParkingLotSectionState extends State<ParkingLotSection> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    '${widget.lectures.fold(0, (s, l) => s + l.ects)} ECTS',
+                    '${formatEcts(widget.lectures.fold(0.0, (s, l) => s + l.ects))} ECTS',
                     style: TextStyle(
                         fontSize: 10, color: context.tone(Colors.orange)),
                   ),

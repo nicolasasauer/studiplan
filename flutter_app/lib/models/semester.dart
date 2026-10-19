@@ -49,9 +49,9 @@ class Semester {
         'lectures': lectures.map((l) => l.toJson()).toList(),
       };
 
-  int get totalEcts => lectures.fold(0, (s, l) => s + l.ects);
-  int get passedEcts =>
-      lectures.where((l) => l.passed).fold(0, (s, l) => s + l.ects);
+  double get totalEcts => lectures.fold(0.0, (s, l) => s + l.ects);
+  double get passedEcts =>
+      lectures.where((l) => l.passed).fold(0.0, (s, l) => s + l.ects);
 
   double? averageGrade({bool weightedByEcts = false}) {
     final graded = lectures.where((l) => l.passed && l.grade != null).toList();
@@ -62,7 +62,7 @@ class Semester {
     }
 
     final totalWeightedEcts =
-        graded.fold<int>(0, (sum, lecture) => sum + lecture.ects);
+        graded.fold<double>(0, (sum, lecture) => sum + lecture.ects);
     if (totalWeightedEcts == 0) return null;
 
     final weightedTotal = graded.fold<double>(

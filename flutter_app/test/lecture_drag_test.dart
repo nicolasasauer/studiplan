@@ -8,7 +8,7 @@ import 'package:studi_plan/models/lecture.dart';
 import 'package:studi_plan/providers/study_plan_provider.dart';
 import 'package:studi_plan/widgets/lecture_drag.dart';
 
-Lecture _lecture(String name, {String season = 'both', int ects = 5}) =>
+Lecture _lecture(String name, {String season = 'both', double ects = 5}) =>
     Lecture(
       id: name,
       name: name,

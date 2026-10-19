@@ -9,7 +9,7 @@ import 'package:studi_plan/models/lecture.dart';
 import 'package:studi_plan/models/study_plan.dart';
 import 'package:studi_plan/providers/study_plan_provider.dart';
 
-Lecture _lecture(String name, int ects) =>
+Lecture _lecture(String name, double ects) =>
     Lecture(id: name, name: name, ects: ects, season: 'both', color: '#4ECDC4');
 
 Future<StudyPlanProvider> _plan({int? target}) async {

@@ -1,13 +1,15 @@
 import 'dart:convert';
 
+import '../utils/number_format.dart';
+import 'grade_scale.dart';
 import 'lecture.dart';
 import 'semester.dart';
 
 /// Caption for [StudyPlan.targetDelta]: how far the plan is from the target.
-String targetDeltaLabel(int delta) {
-  if (delta < 0) return 'noch ${-delta} ECTS offen';
+String targetDeltaLabel(num delta) {
+  if (delta < 0) return 'noch ${formatEcts(-delta)} ECTS offen';
   if (delta == 0) return 'Ziel genau erreicht';
-  return '$delta ECTS über dem Ziel';
+  return '${formatEcts(delta)} ECTS über dem Ziel';
 }
 
 class StudyPlan {
@@ -20,6 +22,14 @@ class StudyPlan {
   bool weightAverageGradeByEcts;
   /// ECTS the whole degree needs (e.g. 180), or null when not set.
   int? targetEcts;
+
+  /// Which grades exist at this university, see [GradeScale].
+  GradeScale gradeScale;
+
+  /// Calendar year of the first semester, or null when not set. With it,
+  /// every semester gets its term ("WS 2025/26"), which Focus Flow uses to
+  /// tell the current one.
+  int? startYear;
   List<Semester> semesters;
   List<Lecture> parkingLot;
 
@@ -30,6 +40,8 @@ class StudyPlan {
     this.isConfigured = false,
     this.weightAverageGradeByEcts = false,
     this.targetEcts,
+    this.gradeScale = GradeScale.fallback,
+    this.startYear,
     List<Semester>? semesters,
     List<Lecture>? parkingLot,
   })  : semesters = semesters ?? [],
@@ -78,6 +90,8 @@ class StudyPlan {
               ? json['weightAverageGradeByEcts'] as bool
               : false,
       targetEcts: normalizeTargetEcts(json['targetEcts']),
+      gradeScale: GradeScale.fromId(json['gradeScale']),
+      startYear: normalizeStartYear(json['startYear']),
       semesters: semesters,
       parkingLot: parkingLot,
     );
@@ -91,6 +105,8 @@ class StudyPlan {
         'weightAverageGradeByEcts': weightAverageGradeByEcts,
         // Left out when unset; older app versions ignore the key either way.
         if (targetEcts != null) 'targetEcts': targetEcts,
+        'gradeScale': gradeScale.id,
+        if (startYear != null) 'startYear': startYear,
         'semesters': semesters.map((s) => s.toJson()).toList(),
         'parkingLot': parkingLot.map((l) => l.toJson()).toList(),
       };
@@ -103,6 +119,50 @@ class StudyPlan {
         'planName': planName,
         'semesters': [semester.toJson()],
       });
+
+  static const minStartYear = 1990;
+  static const maxStartYear = 2100;
+
+  /// A stored start year in [minStartYear]..[maxStartYear], else null.
+  static int? normalizeStartYear(Object? value) {
+    if (value is! num || !value.isFinite) return null;
+    final year = value.floor();
+    return year < minStartYear || year > maxStartYear ? null : year;
+  }
+
+  /// Parses the typed start year: null for an empty field. Throws
+  /// [FormatException] with a message for anything else.
+  static int? parseStartYear(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+    final year = int.tryParse(trimmed);
+    if (year == null || year < minStartYear || year > maxStartYear) {
+      throw const FormatException('Bitte ein Jahr wie 2025 eingeben');
+    }
+    return year;
+  }
+
+  /// The term of semester [number] - `WS 2025/26`, `SS 2026` - or just
+  /// `WS`/`SS` without a [startYear].
+  String termLabel(int number, String season) {
+    final short = season == 'winter' ? 'WS' : 'SS';
+    final term = termOf(number);
+    if (term == null) return short;
+    if (!term.winter) return '$short ${term.year}';
+    final next = '${(term.year + 1) % 100}'.padLeft(2, '0');
+    return '$short ${term.year}/$next';
+  }
+
+  /// Year and season of semester [number], counted from [startYear] and
+  /// [startSeason]; null without a start year. A winter semester carries
+  /// the year it starts in.
+  ({int year, bool winter})? termOf(int number) {
+    final year = startYear;
+    if (year == null) return null;
+    // Half-years since year 0: summer of Y is 2Y, winter of Y is 2Y + 1.
+    final half = 2 * year + (startSeason == 'winter' ? 1 : 0) + number - 1;
+    return (year: half ~/ 2, winter: half.isOdd);
+  }
 
   static const maxTargetEcts = 999;
 
@@ -126,7 +186,8 @@ class StudyPlan {
 
   /// Planned ECTS minus the target: negative while ECTS are still missing,
   /// positive when more is planned than needed. Null without a target.
-  int? get targetDelta => targetEcts == null ? null : totalEcts - targetEcts!;
+  double? get targetDelta =>
+      targetEcts == null ? null : totalEcts - targetEcts!;
 
   bool get isEffectivelyConfigured =>
       isConfigured || semesters.isNotEmpty || parkingLot.isNotEmpty;
@@ -135,9 +196,11 @@ class StudyPlan {
   // counts towards none of the totals: not the planned ECTS, not the passed
   // ones and not the grade average.
 
-  int get totalEcts => semesters.fold(0, (s, sem) => s + sem.totalEcts);
+  double get totalEcts =>
+      semesters.fold(0.0, (s, sem) => s + sem.totalEcts);
 
-  int get passedEcts => semesters.fold(0, (s, sem) => s + sem.passedEcts);
+  double get passedEcts =>
+      semesters.fold(0.0, (s, sem) => s + sem.passedEcts);
 
   double? get averageGrade =>
       calculateAverageGrade(weightedByEcts: weightAverageGradeByEcts);
@@ -154,7 +217,7 @@ class StudyPlan {
     }
 
     final totalWeightedEcts =
-        graded.fold<int>(0, (sum, lecture) => sum + lecture.ects);
+        graded.fold<double>(0, (sum, lecture) => sum + lecture.ects);
     if (totalWeightedEcts == 0) return null;
 
     final weightedTotal = graded.fold<double>(

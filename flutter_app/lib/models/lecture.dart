@@ -7,7 +7,9 @@ class Lecture {
 
   final String id;
   String name;
-  int ects;
+  /// May be fractional (`1.5`); stored as a whole number when it is one,
+  /// so older app versions keep reading whole ECTS unchanged.
+  double ects;
   String? examDate; // YYYY-MM-DD
   String season; // 'winter' | 'summer' | 'both'
   String description;
@@ -38,7 +40,8 @@ class Lecture {
     final name = json['name'] is String && (json['name'] as String).trim().isNotEmpty
         ? (json['name'] as String).trim()
         : 'Unbenannte Veranstaltung';
-    final ects = json['ects'] is num ? (json['ects'] as num).toInt() : 0;
+    final ects =
+        json['ects'] is num ? (json['ects'] as num).toDouble() : 0.0;
     final examDate = json['examDate'] is String && (json['examDate'] as String).isNotEmpty
         ? json['examDate'] as String
         : null;
@@ -81,7 +84,7 @@ class Lecture {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
-        'ects': ects,
+        'ects': ects == ects.roundToDouble() ? ects.toInt() : ects,
         'examDate': examDate,
         'season': season,
         'description': description,
@@ -98,7 +101,7 @@ class Lecture {
   Lecture copyWith({
     String? id,
     String? name,
-    int? ects,
+    double? ects,
     Object? examDate = _keep,
     String? season,
     String? description,

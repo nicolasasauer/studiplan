@@ -6,6 +6,7 @@ import '../providers/study_plan_provider.dart';
 import '../utils/exam_date_utils.dart';
 import 'add_lecture_dialog.dart';
 import '../theme/app_theme.dart';
+import '../utils/number_format.dart';
 import 'lecture_drag.dart';
 
 // The 20 colors from the web app
@@ -138,6 +139,7 @@ class _LectureCardState extends State<LectureCard> {
       builder: (_) => AddLectureDialog(
         existing: widget.lecture,
         semesters: widget.allSemesters,
+        gradeScale: p.plan.gradeScale,
         onSave: (updated, _) => p.updateLecture(updated),
       ),
     );
@@ -209,7 +211,7 @@ class _LectureCardState extends State<LectureCard> {
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14)),
                         ),
-                        _badge('${l.ects} ECTS', context.tone(Colors.blue)),
+                        _badge('${formatEcts(l.ects)} ECTS', context.tone(Colors.blue)),
                       ]),
                       const SizedBox(height: 6),
                       Wrap(spacing: 4, runSpacing: 4, children: [
@@ -217,7 +219,8 @@ class _LectureCardState extends State<LectureCard> {
                         if (l.passed)
                           _badge('✓ Bestanden', context.tone(Colors.green)),
                         if (l.passed && l.grade != null)
-                          _badge('Note: ${l.grade!.toStringAsFixed(1)}',
+                          _badge(
+                              'Note: ${context.read<StudyPlanProvider>().plan.gradeScale.format(l.grade!)}',
                               context.tone(Colors.purple)),
                         if (l.oralExam)
                           _badge('Münd.', context.tone(Colors.teal)),

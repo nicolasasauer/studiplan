@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Lecture, Semester, SemesterSeason, StudyPlan } from './types';
+import { normalizeGradeScale, normalizeStartYear } from './grading';
 
 const PLAN_STORAGE_KEY = 'studyPlan';
 const CURRENT_USER_KEY = 'currentUser';
@@ -104,6 +105,8 @@ export const migrateStudyPlan = (raw: unknown): StudyPlan => {
     isConfigured: false,
     weightAverageGradeByEcts: false,
     targetEcts: null,
+    gradeScale: 'de',
+    startYear: null,
     semesters: generateInitialSemesters(
       DEFAULT_REGULAR_SEMESTERS,
       DEFAULT_START_SEASON,
@@ -185,6 +188,8 @@ export const migrateStudyPlan = (raw: unknown): StudyPlan => {
         : semesters.length > 0,
     weightAverageGradeByEcts: data.weightAverageGradeByEcts === true,
     targetEcts: normalizeTargetEcts(data.targetEcts),
+    gradeScale: normalizeGradeScale(data.gradeScale),
+    startYear: normalizeStartYear(data.startYear),
     semesters:
       semesters.length > 0
         ? semesters
@@ -264,6 +269,8 @@ const buildPlanFromState = (
     | 'isConfigured'
     | 'weightAverageGradeByEcts'
     | 'targetEcts'
+    | 'gradeScale'
+    | 'startYear'
     | 'semesters'
     | 'parkingLot'
   >,
@@ -274,6 +281,8 @@ const buildPlanFromState = (
   isConfigured: state.isConfigured,
   weightAverageGradeByEcts: state.weightAverageGradeByEcts ?? false,
   targetEcts: state.targetEcts ?? null,
+  gradeScale: state.gradeScale ?? 'de',
+  startYear: state.startYear ?? null,
   semesters: state.semesters,
   parkingLot: state.parkingLot,
 });

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Droppable } from 'react-beautiful-dnd';
-import { ChevronDown, Trash2, ArrowDown, ArrowUp, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, Trash2, ArrowDown, ArrowUp, CheckCircle2, Send } from 'lucide-react';
 import type { Semester } from '../types';
 import { useStudyPlanStore } from '../store';
 import { LectureCard } from './LectureCard';
+import { focusFlowLink, formatEcts, termLabel } from '../grading';
 
 interface SemesterSectionProps {
   semester: Semester;
@@ -23,6 +24,10 @@ export const SemesterSection: React.FC<SemesterSectionProps> = ({ semester, onEd
   }
   const removeSemester = useStudyPlanStore(state => state.removeSemester);
   const sortSemesterLectures = useStudyPlanStore(state => state.sortSemesterLectures);
+  const planName = useStudyPlanStore(state => state.planName);
+  const startSeason = useStudyPlanStore(state => state.startSeason);
+  const startYear = useStudyPlanStore(state => state.startYear ?? null);
+  const [handoffLink, setHandoffLink] = useState<string | null>(null);
 
   const totalEcts = semester.lectures.reduce((sum, lecture) => sum + lecture.ects, 0);
   const passedLectures = semester.lectures.filter(l => l.passed);
@@ -47,7 +52,40 @@ export const SemesterSection: React.FC<SemesterSectionProps> = ({ semester, onEd
     }
   };
 
-  const seasonLabel = semester.season === 'winter' ? 'WS' : 'SS';
+  const seasonLabel = termLabel(semester.number, semester.season, startSeason, startYear);
+
+  // Same as the Flutter app's "An Focus Flow übergeben": the semester goes
+  // to the clipboard (Focus Flow › Einstellungen › Fächer › „Aus StudiPlan
+  // übernehmen“), and a link opens Focus Flow where it is installed.
+  const handOverToFocusFlow = async () => {
+    const plan = {
+      planName,
+      startSeason,
+      ...(startYear != null ? { startYear } : {}),
+      semesters: [semester],
+    };
+    const json = JSON.stringify(plan, null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+    } catch {
+      // No clipboard access (e.g. plain http): the link still works.
+    }
+    setHandoffLink(focusFlowLink(JSON.stringify({
+      planName,
+      startSeason,
+      ...(startYear != null ? { startYear } : {}),
+      semesters: [{
+        number: semester.number,
+        season: semester.season,
+        lectures: semester.lectures.map((l) => ({
+          name: l.name,
+          color: l.color,
+          passed: !!l.passed,
+          ...(l.examDate ? { examDate: l.examDate } : {}),
+        })),
+      }],
+    })));
+  };
 
   return (
     <div className="card-hover">
@@ -66,12 +104,12 @@ export const SemesterSection: React.FC<SemesterSectionProps> = ({ semester, onEd
             <h2 className="text-2xl font-bold text-white">Semester {semester.number}</h2>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
               <p className="text-sm text-gray-400">
-                {semester.lectures.length} Veranstaltung{semester.lectures.length !== 1 ? 'en' : ''} · {totalEcts} ECTS · {seasonLabel}
+                {semester.lectures.length} Veranstaltung{semester.lectures.length !== 1 ? 'en' : ''} · {formatEcts(totalEcts)} ECTS · {seasonLabel}
               </p>
               {passedEcts > 0 && (
                 <span className="flex items-center gap-1 text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
                   <CheckCircle2 size={11} />
-                  {passedEcts} bestanden
+                  {formatEcts(passedEcts)} bestanden
                 </span>
               )}
               {avgGrade !== null && (
@@ -82,14 +120,43 @@ export const SemesterSection: React.FC<SemesterSectionProps> = ({ semester, onEd
             </div>
           </div>
         </div>
-        <button
-          onClick={handleDelete}
-          className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-colors"
-          title="Semester löschen"
-        >
-          <Trash2 size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handOverToFocusFlow}
+            disabled={semester.lectures.length === 0}
+            className="p-2 text-gray-400 hover:text-white hover:bg-slate-600 rounded transition-colors disabled:opacity-40"
+            title="An Focus Flow übergeben"
+          >
+            <Send size={18} />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-colors"
+            title="Semester löschen"
+          >
+            <Trash2 size={20} />
+          </button>
+        </div>
       </div>
+
+      {handoffLink && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded bg-slate-700/60 px-3 py-2 text-sm text-gray-300">
+          <span>
+            Semester kopiert – in Focus Flow unter Einstellungen › Fächer ›
+            „Aus StudiPlan übernehmen“ einfügen.
+          </span>
+          <a href={handoffLink} className="text-blue-400 hover:underline">
+            In Focus Flow öffnen
+          </a>
+          <button
+            onClick={() => setHandoffLink(null)}
+            className="text-gray-500 hover:text-gray-300"
+            title="Schließen"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {!isCollapsed && (
         <>

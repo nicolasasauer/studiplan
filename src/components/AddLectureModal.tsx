@@ -3,6 +3,13 @@ import { X } from 'lucide-react';
 import type { Lecture } from '../types';
 import { COLORS } from '../types';
 import { useStudyPlanStore } from '../store';
+import {
+  GRADE_SCALES,
+  formatEcts,
+  formatGrade,
+  parseGrade,
+  parseLectureEcts,
+} from '../grading';
 
 interface AddLectureModalProps {
   isOpen: boolean;
@@ -40,6 +47,13 @@ const getInitialFormData = (initialLecture?: Lecture): Omit<Lecture, 'id'> => {
 
 export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClose, initialLecture }) => {
   const [formData, setFormData] = useState<Omit<Lecture, 'id'>>(() => getInitialFormData(initialLecture));
+  const scaleId = useStudyPlanStore(state => state.gradeScale ?? 'de');
+  const scale = GRADE_SCALES[scaleId];
+  // Typed as text, so "1,5" and "2,3" work with a German keyboard.
+  const [ectsText, setEctsText] = useState(() => formatEcts(formData.ects));
+  const [gradeText, setGradeText] = useState(() =>
+    formData.grade != null ? formatGrade(formData.grade, scaleId) : '');
+  const [error, setError] = useState<string | null>(null);
 
   const addLecture = useStudyPlanStore(state => state.addLecture);
   const updateLecture = useStudyPlanStore(state => state.updateLecture);
@@ -47,25 +61,37 @@ export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClos
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      alert('Bitte füllen Sie alle erforderlichen Felder aus');
+      setError('Bitte einen Namen eingeben');
       return;
     }
 
-    const grade = formData.passed && formData.grade != null
-      ? formData.grade
-      : undefined;
-
-    if (grade != null && (grade < 1.0 || grade > 5.0)) {
-      alert('Die Note muss zwischen 1,0 und 5,0 liegen.');
+    const ects = parseLectureEcts(ectsText);
+    if (typeof ects === 'string') {
+      setError(ects);
       return;
+    }
+
+    let grade: number | undefined;
+    if (formData.passed && gradeText.trim() !== '') {
+      // A grade saved earlier (e.g. 2,1) stays valid as it is.
+      const saved = initialLecture?.grade;
+      const parsed = saved != null && gradeText.trim() === formatGrade(saved, scaleId)
+        ? saved
+        : parseGrade(gradeText, scaleId);
+      if (typeof parsed === 'string') {
+        setError(parsed);
+        return;
+      }
+      grade = parsed;
     }
 
     if (initialLecture) {
-      updateLecture(initialLecture.id, { ...formData, grade });
+      updateLecture(initialLecture.id, { ...formData, ects, grade });
     } else {
       const newLecture: Lecture = {
         id: crypto.randomUUID(),
         ...formData,
+        ects,
         grade,
       };
       addLecture(newLecture);
@@ -109,14 +135,11 @@ export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClos
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">ECTS *</label>
               <input
-                type="number"
-                min="1"
-                max="30"
-                value={formData.ects}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  setFormData({ ...formData, ects: isNaN(val) ? formData.ects : val });
-                }}
+                type="text"
+                inputMode="decimal"
+                value={ectsText}
+                onChange={(e) => setEctsText(e.target.value)}
+                placeholder="z.B. 5 oder 1,5"
                 className="input-field"
                 required
               />
@@ -155,13 +178,13 @@ export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClos
                 type="checkbox"
                 id="passed"
                 checked={!!formData.passed}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  passed: e.target.checked,
-                  grade: e.target.checked
+                onChange={(e) => {
+                  const grade = e.target.checked
                     ? (formData.oralExam ? (formData.grade ?? 4.0) : formData.grade)
-                    : undefined,
-                })}
+                    : undefined;
+                  setFormData({ ...formData, passed: e.target.checked, grade });
+                  setGradeText(grade != null ? formatGrade(grade, scaleId) : '');
+                }}
                 className="w-4 h-4 rounded accent-blue-500 cursor-pointer"
               />
               <label htmlFor="passed" className="text-sm font-medium text-gray-300 cursor-pointer">
@@ -171,19 +194,36 @@ export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClos
             {formData.passed && (
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  {formData.oralExam ? 'Note Mündliche Prüfung' : 'Note'} <span className="text-gray-500">(optional, 1,0 – 5,0)</span>
+                  {formData.oralExam ? 'Note Mündliche Prüfung' : 'Note'} <span className="text-gray-500">(optional, {scale.label})</span>
                 </label>
+                {scale.steps.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {scale.steps.map((step) => {
+                      const text = formatGrade(step, scaleId);
+                      const selected = gradeText.trim() === text;
+                      return (
+                        <button
+                          key={step}
+                          type="button"
+                          onClick={() => setGradeText(text)}
+                          className={`px-2.5 py-1 rounded text-sm transition-colors ${
+                            selected
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
+                          }`}
+                        >
+                          {text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <input
-                  type="number"
-                  min="1.0"
-                  max="5.0"
-                  step="0.1"
-                  value={formData.grade ?? ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    grade: e.target.value ? parseFloat(e.target.value) : undefined,
-                  })}
-                  placeholder={formData.oralExam ? '4,0' : 'z.B. 1,7'}
+                  type="text"
+                  inputMode="decimal"
+                  value={gradeText}
+                  onChange={(e) => setGradeText(e.target.value)}
+                  placeholder={scaleId === 'at' ? 'z.B. 2' : 'z.B. 1,7'}
                   className="input-field"
                 />
               </div>
@@ -232,6 +272,10 @@ export const AddLectureModal: React.FC<AddLectureModalProps> = ({ isOpen, onClos
               ))}
             </div>
           </div>
+
+          {error && (
+            <p className="text-sm text-red-400" role="alert">{error}</p>
+          )}
 
           <div className="flex gap-3 mt-6">
             <button

@@ -66,6 +66,17 @@ void main() {
         utf8.decode(base64Url.decode(base64Url.normalize(data)))));
     expect(plan.planName, 'Mechatronik B.Sc.');
     expect(plan.semesters.single.number, 2);
+    // Without a start year there is none in the link.
+    final raw = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(data))));
+    expect(raw['startSeason'], 'winter');
+    expect((raw as Map).containsKey('startYear'), isFalse);
+    p.plan.startYear = 2025;
+    final withYear = jsonDecode(utf8.decode(base64Url.decode(base64Url
+        .normalize(FocusFlowHandoff.link(p.plan, p.plan.semesters[1])
+            .queryParameters['plan']!))));
+    expect(withYear['startYear'], 2025);
+
     final lectures = plan.semesters.single.lectures;
     expect(lectures.first.name, 'Regelungstechnik');
     expect(lectures.first.color, '#FF6B6B');

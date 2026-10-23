@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import '../models/grade_scale.dart';
 import '../models/lecture.dart';
 import '../models/semester.dart';
 import '../utils/exam_date_utils.dart';
+import '../utils/number_format.dart';
 import 'lecture_card.dart' show kColors, hexColor;
 import '../theme/app_theme.dart';
 
@@ -12,12 +14,16 @@ class AddLectureDialog extends StatefulWidget {
   final String? initialSemesterId;
   final Future<void> Function(Lecture lecture, String? semesterId) onSave;
 
+  /// The plan's grades, offered as buttons and checked when typed.
+  final GradeScale gradeScale;
+
   const AddLectureDialog({
     super.key,
     this.existing,
     required this.semesters,
     this.initialSemesterId,
     required this.onSave,
+    this.gradeScale = GradeScale.fallback,
   });
 
   @override
@@ -32,6 +38,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
   late final TextEditingController _ectsCtrl;
   late final TextEditingController _dateCtrl;
   late final TextEditingController _descCtrl;
+  late final TextEditingController _gradeCtrl;
 
   late String _season;
   String? _examDateValue;
@@ -48,7 +55,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
     final l = widget.existing;
     _nameCtrl = TextEditingController(text: l?.name ?? '');
     _ectsCtrl =
-        TextEditingController(text: l != null ? l.ects.toString() : '');
+        TextEditingController(text: l != null ? formatEcts(l.ects) : '');
     _examDateValue = l?.examDate?.trim();
     _dateCtrl = TextEditingController(
       text: ExamDateUtils.formatStoredDateForDisplay(_examDateValue),
@@ -58,6 +65,8 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
     _passed = l?.passed ?? false;
     _oral = l?.oralExam ?? false;
     _grade = l?.grade;
+    _gradeCtrl = TextEditingController(
+        text: _grade == null ? '' : widget.gradeScale.format(_grade!));
     _color = l?.color ?? kColors[0];
     _semId = l?.semesterId ?? widget.initialSemesterId;
   }
@@ -68,6 +77,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
     _ectsCtrl.dispose();
     _dateCtrl.dispose();
     _descCtrl.dispose();
+    _gradeCtrl.dispose();
     super.dispose();
   }
 
@@ -114,7 +124,7 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
       final l = Lecture(
         id: widget.existing?.id ?? _uuid.v4(),
         name: _nameCtrl.text.trim(),
-        ects: int.parse(_ectsCtrl.text.trim()),
+        ects: parseLectureEcts(_ectsCtrl.text),
         examDate: _examDateValue,
         season: _season,
         description: _descCtrl.text.trim(),
@@ -185,14 +195,15 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
                 decoration: const InputDecoration(
                     labelText: 'ECTS *',
                     prefixIcon: Icon(Icons.star_border)),
-                keyboardType: TextInputType.number,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Pflichtfeld';
-                  final n = int.tryParse(v.trim());
-                  if (n == null || n < 1 || n > 30) {
-                    return '1–30';
+                  try {
+                    parseLectureEcts(v ?? '');
+                    return null;
+                  } on FormatException catch (e) {
+                    return e.message;
                   }
-                  return null;
                 },
                 textInputAction: TextInputAction.next,
               ),
@@ -238,16 +249,19 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
                 value: _passed,
                 onChanged: (v) => setState(() {
                   _passed = v;
-                  if (!v) _grade = null;
+                  if (!v) {
+                    _grade = null;
+                    _gradeCtrl.clear();
+                  }
                 }),
                 contentPadding: EdgeInsets.zero,
               ),
               if (_passed) ...[
-                Text('Note (1.0 – 5.0)',
+                Text('Note (${widget.gradeScale.label})',
                     style: TextStyle(
                         color: context.cs.onSurfaceVariant, fontSize: 13)),
-                const SizedBox(height: 4),
-                _gradeSlider(),
+                const SizedBox(height: 6),
+                _gradeInput(),
                 const SizedBox(height: 8),
               ],
               SwitchListTile(
@@ -340,28 +354,73 @@ class _AddLectureDialogState extends State<AddLectureDialog> {
         onChanged: (v) => setState(() => _semId = v),
       );
 
-  Widget _gradeSlider() {
-    final g = _grade ?? 3.0;
-    return Row(children: [
-      Expanded(
-        child: Slider(
-          value: g,
-          min: 1.0,
-          max: 5.0,
-          divisions: 40,
-          label: g.toStringAsFixed(1),
-          onChanged: (v) => setState(
-              () => _grade = double.parse(v.toStringAsFixed(1))),
+  /// One tap on a grade of the plan's scale, or typing it: no slider that
+  /// lands on 2,1 when 2,0 was meant.
+  Widget _gradeInput() {
+    final scale = widget.gradeScale;
+    final accent = context.tone(Colors.purple);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (scale.steps.isNotEmpty)
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final step in scale.steps)
+                ChoiceChip(
+                  key: Key('grade-${scale.format(step)}'),
+                  label: Text(scale.format(step)),
+                  selected: _grade == step,
+                  selectedColor: accent.withAlpha(60),
+                  onSelected: (_) => setState(() {
+                    _grade = step;
+                    _gradeCtrl.text = scale.format(step);
+                  }),
+                ),
+            ],
+          ),
+        const SizedBox(height: 8),
+        TextFormField(
+          key: const Key('grade-field'),
+          controller: _gradeCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Note eintippen',
+            hintText: scale == GradeScale.austria ? 'z. B. 2' : 'z. B. 2,3',
+            prefixIcon: const Icon(Icons.grade_outlined),
+            helperText: 'Leer lassen, wenn die Note noch fehlt',
+          ),
+          onChanged: (text) => setState(() {
+            try {
+              _grade = text.trim().isEmpty ? null : _parseGrade(text);
+            } on FormatException {
+              // The validator says why; no button stays picked meanwhile.
+              _grade = null;
+            }
+          }),
+          validator: (text) {
+            if (!_passed || text == null || text.trim().isEmpty) return null;
+            try {
+              _parseGrade(text);
+              return null;
+            } on FormatException catch (e) {
+              return e.message;
+            }
+          },
         ),
-      ),
-      SizedBox(
-        width: 42,
-        child: Text(g.toStringAsFixed(1),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontWeight: FontWeight.bold, color: context.tone(Colors.purple))),
-      ),
-    ]);
+      ],
+    );
+  }
+
+  /// [GradeScale.parse], except that a grade saved earlier stays valid as
+  /// it is - a 2,1 from the old slider must not block editing the lecture.
+  double _parseGrade(String text) {
+    final saved = widget.existing?.grade;
+    if (saved != null && text.trim() == widget.gradeScale.format(saved)) {
+      return saved;
+    }
+    return widget.gradeScale.parse(text);
   }
 
   Widget _colorPicker() => Wrap(

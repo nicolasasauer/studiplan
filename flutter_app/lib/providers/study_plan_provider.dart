@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import '../models/grade_scale.dart';
 import '../models/lecture.dart';
 import '../models/semester.dart';
 import '../models/study_plan.dart';
 import '../services/api_service.dart';
+import '../services/backup_service.dart' show BackupSnapshot;
 import '../services/storage_service.dart';
 
 /// Wie mit einem vorhandenen Plan auf dem Server umgegangen wird, wenn ein
@@ -529,14 +531,26 @@ class StudyPlanProvider extends ChangeNotifier {
   }
 
   /// Saves the settings dialog in one go, so the server gets one push.
+  ///
+  /// [gradeScale] and [startYear] stay as they are when left out; a
+  /// [startYear] of null clears it.
   Future<void> updatePlanSettings({
     required bool weightAverageGradeByEcts,
     required int? targetEcts,
+    GradeScale? gradeScale,
+    Object? startYear = _keep,
   }) async {
     _plan.weightAverageGradeByEcts = weightAverageGradeByEcts;
     _plan.targetEcts = StudyPlan.normalizeTargetEcts(targetEcts);
+    if (gradeScale != null) _plan.gradeScale = gradeScale;
+    if (!identical(startYear, _keep)) {
+      _plan.startYear = StudyPlan.normalizeStartYear(startYear);
+    }
     await _save();
   }
+
+  /// Marks a left-out argument in [updatePlanSettings].
+  static const Object _keep = Object();
 
   Future<void> updatePlanName(String name) async {
     _plan.planName = name.trim().isEmpty ? StudyPlan.defaultPlanName : name.trim();
@@ -790,6 +804,26 @@ class StudyPlanProvider extends ChangeNotifier {
 
   String exportJson() =>
       const JsonEncoder.withIndent('  ').convert(_plan.toJson());
+
+  /// Every plan on this device as export JSON, for the automatic backup:
+  /// all local plans in local mode, the open one in server mode.
+  Future<List<BackupSnapshot>> backupSnapshots() async {
+    String encode(StudyPlan plan) =>
+        const JsonEncoder.withIndent('  ').convert(plan.toJson());
+    if (!_localMode) {
+      return isLoggedIn ? [(planName: _plan.planName, json: exportJson())] : [];
+    }
+    final snapshots = <BackupSnapshot>[];
+    for (final summary in _localPlans) {
+      final plan = summary.id == _localPlanId
+          ? _plan
+          : await _storage.loadLocalPlan(summary.id);
+      if (plan != null) {
+        snapshots.add((planName: plan.planName, json: encode(plan)));
+      }
+    }
+    return snapshots;
+  }
 
   Future<String?> importJson(String jsonStr) async {
     try {

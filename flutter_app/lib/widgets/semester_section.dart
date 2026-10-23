@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/semester.dart';
+import '../models/grade_scale.dart';
 import '../providers/study_plan_provider.dart';
 import '../services/focus_flow_handoff.dart';
 import 'add_lecture_dialog.dart';
 import 'lecture_card.dart';
 import 'lecture_drag.dart';
 import '../theme/app_theme.dart';
+import '../utils/number_format.dart';
 
 class SemesterSection extends StatefulWidget {
   final Semester semester;
@@ -27,7 +29,7 @@ class _SemesterSectionState extends State<SemesterSection> {
 
   Color get _seasonColor =>
       sem.season == 'winter' ? context.tone(Colors.blue) : context.tone(Colors.orange);
-  String get _seasonLabel => sem.season == 'winter' ? 'WS' : 'SS';
+  String get _seasonLabel => p.plan.termLabel(sem.number, sem.season);
 
   void _delete(BuildContext context) {
     showDialog(
@@ -82,6 +84,7 @@ class _SemesterSectionState extends State<SemesterSection> {
       builder: (_) => AddLectureDialog(
         initialSemesterId: sem.id,
         semesters: p.plan.semesters,
+        gradeScale: p.plan.gradeScale,
         onSave: (l, semId) => p.addLecture(l, semId),
       ),
     );
@@ -145,10 +148,10 @@ class _SemesterSectionState extends State<SemesterSection> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _miniChip('${sem.totalEcts} ECTS', context.tone(Colors.blue)),
+                      _miniChip('${formatEcts(sem.totalEcts)} ECTS', context.tone(Colors.blue)),
                       if (sem.passedEcts > 0) ...[
                         const SizedBox(width: 6),
-                        _miniChip('✓ ${sem.passedEcts}', context.tone(Colors.green)),
+                        _miniChip('✓ ${formatEcts(sem.passedEcts)}', context.tone(Colors.green)),
                       ],
                       if (avg != null) ...[
                         const SizedBox(width: 6),
@@ -157,7 +160,7 @@ class _SemesterSectionState extends State<SemesterSection> {
                               ? 'ECTS-gewichtete Durchschnittsnote'
                               : 'Ungewichtete Durchschnittsnote',
                           child:
-                              _miniChip('Ø ${avg.toStringAsFixed(1)}', context.tone(Colors.purple)),
+                              _miniChip('Ø ${formatAverageGrade(avg)}', context.tone(Colors.purple)),
                         ),
                       ],
                     ],

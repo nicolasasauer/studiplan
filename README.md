@@ -34,8 +34,9 @@ Ueber den Dialog koennen neue Veranstaltungen mit Name, ECTS, Turnus (WS/SS/Beid
 - Ersteinrichtung beim ersten Start (Planname, Regelstudienzeit, Startsemester)
 - Regelstudienzeit konfigurierbar (1-20 Semester), Standard: 6 Semester
 - Planname direkt im Header bearbeitbar
-- Veranstaltungen mit Name, ECTS, Klausurdatum, Turnus (WS/SS/Beide), Beschreibung und Farbe
-- Bestanden-Status und Note (1,0-5,0) pro Veranstaltung erfassbar
+- Veranstaltungen mit Name, ECTS (auch halbe, z. B. 1,5), Klausurdatum, Turnus (WS/SS/Beide), Beschreibung und Farbe
+- Bestanden-Status und Note pro Veranstaltung erfassbar; Noten per Tipp auf die erlaubten Stufen oder als Zahl eintippen, je nach Notensystem des Plans: Deutschland (1,0/1,3/.../4,0), Oesterreich (1-4) oder frei (Zehntelschritte)
+- Studienbeginn (Jahr, optional): die Semester tragen ihr Jahr ("WS 2025/26")
 - Veranstaltung als "Muendliche Pruefung" markierbar: bei nicht bestandener Klausur (5,0) kann die Veranstaltung als Zweitversuch in ein anderes Semester verschoben werden; schlaegt auch dieser fehl, laesst sich eine muendliche Pruefung eintragen (Note standardmaessig 4,0)
 - ECTS- und Notenstatistik im Header (gesamt geplant, bestanden, Durchschnittsnote)
 - Notenstatistik pro Semester (bestandene ECTS, Durchschnittsnote)
@@ -47,6 +48,7 @@ Ueber den Dialog koennen neue Veranstaltungen mit Name, ECTS, Turnus (WS/SS/Beid
 - Bearbeiten und Loeschen von Veranstaltungen
 - Parkplatz fuer noch nicht zugeordnete Veranstaltungen (erscheint nur wenn belegt)
 - Import/Export des Plans als JSON-Datei
+- Flutter-App: automatisches Backup aller Plaene in einen gewaehlten Ordner (z. B. Cloud-Ordner), taeglich oder woechentlich; die letzten 10 je Plan bleiben, zurueck ueber "Importieren"
 - Flutter-App: "An Focus Flow uebergeben" im Semester-Menue oeffnet Focus Flow direkt mit dem Semester (Android, Windows-Store-Version), sonst kopiert es das Semester in die Zwischenablage; [Focus Flow](https://github.com/nicolasasauer/focus-flow) legt die Veranstaltungen daraus als Faecher an, samt Klausurtermin. Umgekehrt kann Focus Flow den Plan selbst anfordern ("Aus StudiPlan uebernehmen"): StudiPlan oeffnet sich per `studiplan://export` und schickt den Plan ohne weitere Rueckfrage zurueck (Einstellungen › Faecher › "Aus StudiPlan uebernehmen")
 - Persistenz im Browser via `localStorage`; bei Docker-Deployment zusaetzlich server-seitig in einer SQLite-Datenbank unter `/data/studiumsplaner.db`
 

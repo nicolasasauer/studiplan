@@ -3,6 +3,7 @@ import { Draggable } from 'react-beautiful-dnd';
 import { Trash2, Badge, Calendar, BookOpen, Pencil, AlertTriangle, CheckCircle2, Circle } from 'lucide-react';
 import type { Lecture, SemesterSeason } from '../types';
 import { useStudyPlanStore } from '../store';
+import { formatEcts, formatGrade } from '../grading';
 
 interface LectureCardProps {
   lecture: Lecture;
@@ -14,6 +15,7 @@ interface LectureCardProps {
 export const LectureCard: React.FC<LectureCardProps> = ({ lecture, index, semesterSeason, onEdit }) => {
   const removeLecture = useStudyPlanStore(state => state.removeLecture);
   const updateLecture = useStudyPlanStore(state => state.updateLecture);
+  const gradeScale = useStudyPlanStore(state => state.gradeScale ?? 'de');
   const [showDetails, setShowDetails] = useState(false);
 
   const showSeasonHint =
@@ -81,13 +83,13 @@ export const LectureCard: React.FC<LectureCardProps> = ({ lecture, index, semest
               <h3 className="font-semibold text-white truncate hover:text-clip">{lecture.name}</h3>
               <div className="flex items-center gap-2 mt-2 text-sm text-gray-300 flex-wrap">
                 <Badge size={16} />
-                <span>{lecture.ects} ECTS</span>
+                <span>{formatEcts(lecture.ects)} ECTS</span>
                 <span className={`font-medium ${getSeasonColor(lecture.season)}`}>
                   {getSeasonLabel(lecture.season)}
                 </span>
                 {lecture.passed && lecture.grade != null && (
                   <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
-                    Note: {lecture.grade.toFixed(1).replace('.', ',')}
+                    Note: {formatGrade(lecture.grade, gradeScale)}
                   </span>
                 )}
                 {lecture.passed && lecture.grade == null && (

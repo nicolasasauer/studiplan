@@ -7,9 +7,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/study_plan.dart';
+import '../models/grade_scale.dart';
 import '../providers/study_plan_provider.dart';
 import '../models/lecture.dart';
+import '../services/backup_service.dart';
 import '../widgets/add_lecture_dialog.dart';
+import '../widgets/backup_settings_dialog.dart';
 import '../widgets/lecture_drag.dart';
 import '../widgets/parking_lot_section.dart';
 import '../widgets/plan_setup_dialog.dart';
@@ -19,6 +22,7 @@ import '../widgets/semester_section.dart';
 import '../widgets/plan_list_dialog.dart';
 import '../widgets/share_local_plan_dialog.dart';
 import '../theme/app_theme.dart';
+import '../utils/number_format.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -152,6 +156,11 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _openBackupSettings() => showDialog<void>(
+        context: context,
+        builder: (_) => const BackupSettingsDialog(),
+      );
+
   Future<void> _openPlanList() => showDialog<void>(
         context: context,
         builder: (_) => const PlanListDialog(),
@@ -248,6 +257,7 @@ class _MainScreenState extends State<MainScreen> {
       context: context,
       builder: (_) => AddLectureDialog(
         semesters: p.plan.semesters,
+        gradeScale: p.plan.gradeScale,
         onSave: (l, semId) => p.addLecture(l, semId),
       ),
     );
@@ -302,8 +312,15 @@ class _MainScreenState extends State<MainScreen> {
       builder: (_) => PlanSettingsDialog(
         initialWeightAverageGradeByEcts: p.plan.weightAverageGradeByEcts,
         initialTargetEcts: p.plan.targetEcts,
-        onSave: (weighted, targetEcts) => p.updatePlanSettings(
-            weightAverageGradeByEcts: weighted, targetEcts: targetEcts),
+        initialGradeScale: p.plan.gradeScale,
+        initialStartYear: p.plan.startYear,
+        startSeason: p.plan.startSeason,
+        onSave: (s) => p.updatePlanSettings(
+          weightAverageGradeByEcts: s.weightAverageGradeByEcts,
+          targetEcts: s.targetEcts,
+          gradeScale: s.gradeScale,
+          startYear: s.startYear,
+        ),
       ),
     );
   }
@@ -505,6 +522,9 @@ class _MainScreenState extends State<MainScreen> {
         ?unsynced,
         action(Icons.download, 'Importieren', () => _import(p)),
         action(Icons.upload, 'Exportieren', () => _export(p)),
+        if (BackupService.isSupported)
+          action(Icons.backup_outlined, 'Automatisches Backup',
+              _openBackupSettings),
         action(Icons.add_circle_outline, 'Semester hinzufügen',
             () => p.addSemester()),
         action(Icons.settings, settingsTooltip, openSettings),
@@ -549,6 +569,9 @@ class _MainScreenState extends State<MainScreen> {
               () => p.addSemester()),
           item(Icons.download, 'Importieren', () => _import(p)),
           item(Icons.upload, 'Exportieren', () => _export(p)),
+          if (BackupService.isSupported)
+            item(Icons.backup_outlined, 'Automatisches Backup',
+                _openBackupSettings),
           if (p.localMode)
             item(Icons.cloud_upload, 'Mit Server synchronisieren',
                 _shareLocalPlan),
@@ -615,10 +638,10 @@ class _MainScreenState extends State<MainScreen> {
           // On a phone the unit would shrink the numbers; the caption
           // below says ECTS anyway.
           value: target == null
-              ? '$total ECTS'
+              ? '${formatEcts(total)} ECTS'
               : compact
-                  ? '$total / $target'
-                  : '$total / $target ECTS',
+                  ? '${formatEcts(total)} / $target'
+                  : '${formatEcts(total)} / $target ECTS',
           label: 'Geplant',
           icon: Icons.event_note_rounded,
           color: Colors.blue,
@@ -635,7 +658,7 @@ class _MainScreenState extends State<MainScreen> {
         _statCard(
           compact: compact,
           key: const Key('stat-passed'),
-          value: '$passed ECTS',
+          value: '${formatEcts(passed)} ECTS',
           label: 'Bestanden',
           icon: Icons.verified_rounded,
           color: Colors.green,
@@ -647,7 +670,7 @@ class _MainScreenState extends State<MainScreen> {
           const SizedBox(width: 12),
           _statCard(
             compact: compact,
-            value: 'Ø ${avg.toStringAsFixed(1)}',
+            value: 'Ø ${formatAverageGrade(avg)}',
             label: 'Notenschnitt',
             icon: Icons.grade_rounded,
             color: Colors.purple,

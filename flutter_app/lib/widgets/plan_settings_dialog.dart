@@ -1,20 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/grade_scale.dart';
 import '../models/study_plan.dart';
 import '../services/theme_service.dart';
 import 'target_ects_field.dart';
 
+/// What the settings dialog saves, in one go.
+typedef PlanSettings = ({
+  bool weightAverageGradeByEcts,
+  int? targetEcts,
+  GradeScale gradeScale,
+  int? startYear,
+});
+
 class PlanSettingsDialog extends StatefulWidget {
   final bool initialWeightAverageGradeByEcts;
   final int? initialTargetEcts;
-  final Future<void> Function(bool weightAverageGradeByEcts, int? targetEcts)
-      onSave;
+  final GradeScale initialGradeScale;
+  final int? initialStartYear;
+
+  /// The plan's first semester, for the start year's label ("WS"/"SS").
+  final String startSeason;
+  final Future<void> Function(PlanSettings settings) onSave;
 
   const PlanSettingsDialog({
     super.key,
     required this.initialWeightAverageGradeByEcts,
     this.initialTargetEcts,
+    this.initialGradeScale = GradeScale.fallback,
+    this.initialStartYear,
+    this.startSeason = 'winter',
     required this.onSave,
   });
 
@@ -26,6 +42,8 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
   final _formKey = GlobalKey<FormState>();
   late bool _weightAverageGradeByEcts;
   late final TextEditingController _targetCtrl;
+  late final TextEditingController _startYearCtrl;
+  late GradeScale _gradeScale;
   bool _saving = false;
 
   @override
@@ -34,11 +52,15 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
     _weightAverageGradeByEcts = widget.initialWeightAverageGradeByEcts;
     _targetCtrl =
         TextEditingController(text: widget.initialTargetEcts?.toString() ?? '');
+    _startYearCtrl =
+        TextEditingController(text: widget.initialStartYear?.toString() ?? '');
+    _gradeScale = widget.initialGradeScale;
   }
 
   @override
   void dispose() {
     _targetCtrl.dispose();
+    _startYearCtrl.dispose();
     super.dispose();
   }
 
@@ -46,8 +68,12 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      await widget.onSave(_weightAverageGradeByEcts,
-          StudyPlan.parseTargetEcts(_targetCtrl.text));
+      await widget.onSave((
+        weightAverageGradeByEcts: _weightAverageGradeByEcts,
+        targetEcts: StudyPlan.parseTargetEcts(_targetCtrl.text),
+        gradeScale: _gradeScale,
+        startYear: StudyPlan.parseStartYear(_startYearCtrl.text),
+      ));
       if (mounted) Navigator.of(context).pop();
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -121,6 +147,49 @@ class _PlanSettingsDialogState extends State<PlanSettingsDialog> {
                 controller: _targetCtrl,
                 enabled: !_saving,
                 onSubmitted: _save,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('start-year'),
+                controller: _startYearCtrl,
+                enabled: !_saving,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Studienbeginn (optional)',
+                  hintText: 'z. B. 2025',
+                  prefixText:
+                      widget.startSeason == 'winter' ? 'WS ' : 'SS ',
+                  helperText: 'Damit tragen die Semester ihr Jahr, und Focus '
+                      'Flow erkennt das aktuelle.',
+                  helperMaxLines: 2,
+                ),
+                validator: (text) {
+                  try {
+                    StudyPlan.parseStartYear(text ?? '');
+                    return null;
+                  } on FormatException catch (e) {
+                    return e.message;
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<GradeScale>(
+                key: const Key('grade-scale'),
+                initialValue: _gradeScale,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Notensystem',
+                  helperText: _gradeScale.summary,
+                ),
+                items: [
+                  for (final scale in GradeScale.values)
+                    DropdownMenuItem(value: scale, child: Text(scale.label)),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (scale) {
+                        if (scale != null) setState(() => _gradeScale = scale);
+                      },
               ),
               const SizedBox(height: 4),
               SwitchListTile(

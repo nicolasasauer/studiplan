@@ -21,6 +21,7 @@ import {
   SemesterSection,
   UserSelection,
 } from './components';
+import { formatEcts } from './grading';
 
 function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -114,10 +115,10 @@ function App() {
 
   const targetDeltaLabel = (delta: number): string =>
     delta < 0
-      ? `noch ${-delta} offen`
+      ? `noch ${formatEcts(-delta)} offen`
       : delta === 0
         ? 'Ziel erreicht'
-        : `${delta} über dem Ziel`;
+        : `${formatEcts(delta)} über dem Ziel`;
 
   // The parking lot holds modules not planned into a semester yet; they count
   // towards none of the totals (same rule as the Flutter app).
@@ -347,7 +348,7 @@ function App() {
             {totalEcts > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-slate-700 pt-3 text-sm">
                 <span className="text-gray-400">
-                  <span className="font-semibold text-white">{totalEcts}</span>
+                  <span className="font-semibold text-white">{formatEcts(totalEcts)}</span>
                   {targetEcts !== null && ` / ${targetEcts}`} ECTS geplant
                   {targetEcts !== null && (
                     <span className="text-gray-500">
@@ -359,7 +360,7 @@ function App() {
                 {passedEcts > 0 && (
                   <span className="flex items-center gap-1 text-green-400">
                     <CheckCircle2 size={14} />
-                    <span className="font-semibold">{passedEcts}</span> ECTS
+                    <span className="font-semibold">{formatEcts(passedEcts)}</span> ECTS
                     bestanden
                     <span className="text-gray-500">
                       ({passedLectures.length}/{plannedLectures.length} Klausuren)

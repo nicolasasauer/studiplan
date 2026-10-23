@@ -30,6 +30,11 @@ export interface StudyPlan {
   weightAverageGradeByEcts?: boolean;
   // ECTS the whole degree needs; null when not set.
   targetEcts?: number | null;
+  // Which grades exist ('de' 1,0/1,3/…, 'at' 1–4, 'free'); set in the
+  // Flutter app's settings, used here for grade input.
+  gradeScale?: 'de' | 'at' | 'free';
+  // Year of the first semester; null when not set.
+  startYear?: number | null;
   semesters: Semester[];
   parkingLot: Lecture[];
 }

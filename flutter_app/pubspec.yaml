@@ -53,6 +53,10 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
   web:
     generate: false
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
 
 # Windows package for the Microsoft Store, built in CI by
 # .github/workflows/flutter-build-desktop.yml (`msix:create`, installed there
